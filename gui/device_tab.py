@@ -206,7 +206,7 @@ class DeviceTab(ttk.Frame):
         self._set_status("Switching to ADB mode...")
 
         def _do_switch():
-            ok, msg = device.switch_to_adb(self.current_mode)
+            ok, msg = device.switch_to_adb()
             mode = device.detect_mode()
             model = "device"
             if mode == device.DeviceMode.ADB:
