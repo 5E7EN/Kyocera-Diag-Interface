@@ -88,8 +88,9 @@ sudo python3 main.py
 ## How it works
 
 This tool interacts with the `/vendor/bin/kdiag_common` binary on device.  
-The binary exposes quite a lot of diagnostics-related methods that grant near full control of the device.
-Excluding the native functions, much of this is also possible once permissive root access is enabled.
+The binary exposes quite a lot of diagnostics-related methods that grant near full control of the device.  
+Besides the native functions, much is also possible once permissive root access is enabled.  
+Proper writeup coming soon™.
 
 ## Credits
 
