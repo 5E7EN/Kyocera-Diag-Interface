@@ -11,6 +11,10 @@ Also tested on an old C7642 device running Android 5.1.1 - which shares the diag
 
 ### Writing to /system or verified partitions on a locked bootloader (via Shell tab) will brick your device!
 
+## Demo
+
+<video src="media/demo.mp4" controls width="100%"></video>
+
 ## Features
 
 - Switch between ADB and diag mode seamlessly
