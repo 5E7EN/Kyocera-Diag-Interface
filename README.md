@@ -1,5 +1,9 @@
 # Kyocera Diag Interface
 
+<p align="center">
+    <img src="https://img.shields.io/badge/built-BS%22D-brightgreen" />
+</p>
+
 GUI tool for interacting with Kyocera devices via ADB and diag mode.
 
 Tested on E4610 and E4810. Other Kyocera devices with the same protocol may work but are untested.  
