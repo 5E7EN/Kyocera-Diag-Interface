@@ -222,10 +222,8 @@ class DeviceTab(ttk.Frame):
         self._set_status("Rebooting device...")
 
         def _do_reboot():
-            import subprocess
-
             try:
-                subprocess.run(["adb", "reboot"], timeout=10, capture_output=True)
+                device.reboot()
                 self.after(0, lambda: self._set_status("Reboot command sent"))
             except Exception as e:
                 self.after(0, lambda: self._set_status(f"Reboot failed: {e}"))

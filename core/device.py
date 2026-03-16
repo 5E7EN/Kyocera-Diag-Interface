@@ -130,6 +130,11 @@ def adb_shell(cmd: str) -> str:
         return "Error: command timed out (30s)"
 
 
+def reboot() -> None:
+    """Reboot the device via ADB."""
+    subprocess.run(["adb", "reboot"], timeout=10, capture_output=True)
+
+
 def switch_to_adb() -> tuple:
     """Switch device back to regular ADB/charge mode via adb shell. Returns (success, message)."""
     import time
