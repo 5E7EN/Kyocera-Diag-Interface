@@ -13,7 +13,7 @@ Also tested on an old C7642 device running Android 5.1.1 - which shares the diag
 
 ## Demo
 
-<video src="media/demo.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/b4ae6ded-5514-4746-a40e-2a45283b3960
 
 ## Features
 
