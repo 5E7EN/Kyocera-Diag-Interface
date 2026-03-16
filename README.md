@@ -23,6 +23,8 @@ Currently only supports Linux.
 ### Linux:
 
 ```bash
+git clone https://github.com/5E7EN/Kyocera-Diag-Interface.git
+cd Kyocera-Diag-Interface
 sudo apt install python3-tk adb sg3-utils
 pip install -r requirements.txt
 ```
