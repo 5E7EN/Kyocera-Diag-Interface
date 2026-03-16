@@ -46,9 +46,9 @@ class ShellTab(ttk.Frame):
 
         warn_label = ttk.Label(
             warn_frame,
-            text=("WARNING: Unless your bootloader is unlocked, any edits to /system or other "
-                  "verified partitions WILL BRICK YOUR DEVICE.\n"
-                  "Do not modify protected filesystem locations."),
+            text=("DISCLAIMER: Unless your bootloader is unlocked, any edits to /system or other "
+                  "verified partitions WILL BRICK YOUR DEVICE. "
+                  "We take no responsibility for anything that happens to your device."),
             foreground=styles.ERROR, background="#2a0a0f",
             justify="left", padding=(10, 8),
         )

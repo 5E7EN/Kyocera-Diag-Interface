@@ -26,13 +26,15 @@ def show_credits(parent: tk.Tk):
     frame = ttk.Frame(dialog, padding=24)
     frame.pack(fill="both", expand=True)
 
-    ttk.Label(frame, text="Kyocera Diag Interface", style="Title.TLabel").pack(anchor="w")
+    ttk.Label(frame, text="Kyocera Diag Interface", style="Title.TLabel").pack(
+        anchor="w"
+    )
     ttk.Label(frame, text=f"v{__version__}", foreground=styles.FG_DIM).pack(anchor="w")
     ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(8, 16))
 
     credits_text = (
-        "GUI: @ClaudeAI and @BenTorah\n\n"
-        "Scripts & tooling: @BenTorah and @LeoBuskin\n\n"
+        "GUI: @ClaudeAI and @5E7EN\n\n"
+        "Scripts & tooling: @5E7EN and @LeoBuskin\n\n"
         "Special thanks to @LeoBuskin for findings that helped\n"
         "identify the mechanisms implemented in this project.\n\n---\n\n"
         "Methods adapted from official, publicly-available\n"
@@ -40,15 +42,22 @@ def show_credits(parent: tk.Tk):
         "More features coming soon™"
     )
 
-    text_label = ttk.Label(frame, text=credits_text, foreground=styles.FG_SECONDARY,
-                           justify="left", wraplength=470)
+    text_label = ttk.Label(
+        frame,
+        text=credits_text,
+        foreground=styles.FG_SECONDARY,
+        justify="left",
+        wraplength=470,
+    )
     text_label.pack(anchor="w", fill="x")
 
     link_url = "https://forums.jtechforums.org/t/can-you-unlock-and-root-kyocera-e4810/4227/114"
-    link = ttk.Label(frame, text="JTechForums",
-                     foreground=styles.ACCENT, cursor="hand2")
+    link = ttk.Label(
+        frame, text="JTechForums", foreground=styles.ACCENT, cursor="hand2"
+    )
     link.pack(anchor="w", pady=(12, 0))
     link.bind("<Button-1>", lambda e: __import__("webbrowser").open(link_url))
 
-    ttk.Button(frame, text="Close", style="Accent.TButton",
-               command=dialog.destroy).pack(anchor="e", pady=(20, 0))
+    ttk.Button(
+        frame, text="Close", style="Accent.TButton", command=dialog.destroy
+    ).pack(anchor="e", pady=(20, 0))
