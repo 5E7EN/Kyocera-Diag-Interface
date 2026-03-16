@@ -1,5 +1,6 @@
 """Device tab: mode detection, switching, and probe."""
 
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -83,7 +84,8 @@ class DeviceTab(ttk.Frame):
         self.adb_btn = ttk.Button(
             btn_frame, text="Switch to ADB Mode (Regular)", command=self._switch_to_adb
         )
-        self.adb_btn.pack(side="left", padx=(0, 8))
+        if sys.platform != "win32":
+            self.adb_btn.pack(side="left", padx=(0, 8))
 
         self.reboot_btn = ttk.Button(
             btn_frame,
@@ -159,7 +161,7 @@ class DeviceTab(ttk.Frame):
             device.DeviceMode.DIAG: (
                 "Diag Mode",
                 styles.ACCENT,
-                f"Model: {model} | VID:PID 0482:0A9D | Full diag access | ADB unavailable in this mode",
+                f"Model: {model} | VID:PID 0482:0A9D",
             ),
         }
 
@@ -317,6 +319,6 @@ class DeviceTab(ttk.Frame):
         self.probe_btn.configure(state="normal")
         self.probe_text.configure(state="normal")
         self.probe_text.delete("1.0", "end")
-        self.probe_text.insert("end", f"[-] Error: {msg}\n")
+        self.probe_text.insert("end", f"Error: {msg}\n")
         self.probe_text.configure(state="disabled")
         self._set_status("Probe failed")

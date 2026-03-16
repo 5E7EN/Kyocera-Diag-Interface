@@ -35,11 +35,9 @@ def show_credits(parent: tk.Tk):
     credits_text = (
         "GUI: @ClaudeAI and @5E7EN\n\n"
         "Scripts & tooling: @5E7EN and @LeoBuskin\n\n"
-        "Special thanks to @LeoBuskin for findings that helped\n"
-        "identify the mechanisms implemented in this project.\n\n---\n\n"
-        "Methods adapted from official, publicly-available\n"
-        "Kyocera/Qualcomm tooling and device analysis.\n"
-        "More features coming soon™"
+        "Special thanks to @LeoBuskin for findings that helped identify the mechanisms implemented in this project.\n\n---\n\n"
+        "Methods adapted from official, publicly-available Kyocera/Qualcomm tooling and device analysis.\n"
+        "More features coming soon™."
     )
 
     text_label = ttk.Label(
@@ -51,7 +49,7 @@ def show_credits(parent: tk.Tk):
     )
     text_label.pack(anchor="w", fill="x")
 
-    link_url = "https://forums.jtechforums.org/t/can-you-unlock-and-root-kyocera-e4810/4227/114"
+    link_url = "https://forums.jtechforums.org/t/can-you-unlock-and-root-kyocera-e4810/4227/126"
     link = ttk.Label(
         frame, text="JTechForums", foreground=styles.ACCENT, cursor="hand2"
     )

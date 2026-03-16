@@ -160,14 +160,9 @@ _conn = None  # Cached (dev, iface, ep_out, ep_in)
 def _get_connection(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
     """Get or create a persistent USB connection to the diag device."""
     global _conn
+    # Always close previous connection to avoid stale endpoints after re-enumeration
     if _conn is not None:
-        dev, iface, ep_out, ep_in = _conn
-        # Verify device is still present
-        try:
-            dev.get_active_configuration()
-            return dev, iface, ep_out, ep_in
-        except (usb.core.USBError, Exception):
-            _conn = None
+        _close_stale()
 
     dev, iface, ep_out, ep_in = find_device(vid, pid)
     if not dev:
@@ -176,25 +171,35 @@ def _get_connection(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
         usb.util.claim_interface(dev, iface)
     except usb.core.USBError as e:
         logger.error(f"Failed to claim interface: {e}")
-        return None, -1, None, None
+        try:
+            dev.reset()
+            usb.util.claim_interface(dev, iface)
+        except Exception:
+            return None, -1, None, None
     _conn = (dev, iface, ep_out, ep_in)
     return dev, iface, ep_out, ep_in
 
 
+def _close_stale():
+    """Best-effort cleanup of a stale connection."""
+    global _conn
+    if _conn is None:
+        return
+    dev, iface, _, _ = _conn
+    _conn = None
+    try:
+        usb.util.release_interface(dev, iface)
+    except Exception:
+        pass
+    try:
+        usb.util.dispose_resources(dev)
+    except Exception:
+        pass
+
+
 def close_connection():
     """Release the persistent USB connection."""
-    global _conn
-    if _conn is not None:
-        dev, iface, _, _ = _conn
-        try:
-            usb.util.release_interface(dev, iface)
-        except Exception:
-            pass
-        try:
-            usb.util.dispose_resources(dev)
-        except Exception:
-            pass
-        _conn = None
+    _close_stale()
 
 
 def exec_command(

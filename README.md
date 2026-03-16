@@ -1,37 +1,39 @@
 # Kyocera Diag Interface
 
-GUI tool for interacting with Kyocera devices via ADB and Qualcomm diagnostic mode.
+GUI tool for interacting with Kyocera devices via ADB and diag mode.
 
-Tested on E4610 and E4810. Other Kyocera devices with the same Qualcomm diag interface may work but are untested.  
+Tested on E4610 and E4810. Other Kyocera devices with the same protocol may work but are untested.  
 Also tested on an old C7642 device running Android 5.1.1 - which shares the diag protocol. Switching to diag mode is done via hidden dailer menu (##DIAG#) after MSL code auth, though.
 
-### ⚠️ Disclaimer: I take no responsibility for anything that happens to your device as a result of using this tool.
+### ⚠️ Disclaimer:
+
+### I take no responsibility for anything that happens to your device as a result of using this tool.
 
 ### Writing to /system or verified partitions on a locked bootloader (via Shell tab) will brick your device!
 
 ## Features
 
-- Switch between ADB and Qualcomm diagnostic mode seamlessly
-- Execute shell commands with root access via diag mode
+- Switch between ADB and diag mode seamlessly
+- Execute shell commands with root via diag mode
 - View and change SELinux enforcement state
 - Pull files from the device
-- Reboot device remotely
+- Reboot device
 
 ## Setup
 
 ### Linux
 
-- `git clone https://github.com/5E7EN/Kyocera-Diag-Interface.git && cd Kyocera-Diag-Interface`
+- `git clone https://github.com/5E7EN/Kyocera-Diag-Interface && cd Kyocera-Diag-Interface`
 - `sudo apt install python3-tk adb sg3-utils`
 - `pip install -r requirements.txt`
 
-### Windows
+### Windows (EXPERIMENTAL)
 
 1. Install [Python 3.10+](https://www.python.org/downloads/) (ensure "Add to PATH" is checked during install)
 
 2. Install [Minimal ADB and Fastboot](https://androiddatahost.com/wp-content/uploads/Minimal_ADB_Fastboot_v1.4.3.zip) and add to your PATH
 
-3. Install [Zadig](https://zadig.akeo.ie/) (needed for USB driver setup - see step 5)
+3. Install [Zadig](https://zadig.akeo.ie/) (needed for USB driver setup - see step 6)
 
 4. Download [libusb](https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.7z)
     - Extract `VS2022/MS64/dll/libusb-1.0.dll`
@@ -41,9 +43,6 @@ Also tested on an old C7642 device running Android 5.1.1 - which shares the diag
     - `git clone https://github.com/5E7EN/Kyocera-Diag-Interface.git`
     - `cd Kyocera-Diag-Interface`
     - `pip install -r requirements.txt`
-    - `pip install libusb-package`
-
-    The `libusb-package` pip module provides the libusb-1.0 DLL that PyUSB needs on Windows.
 
 6. **USB driver setup (one-time, required for diag mode):**
     - In an administrator terminal, run the tool - `python main.py`
@@ -55,11 +54,13 @@ Also tested on an old C7642 device running Android 5.1.1 - which shares the diag
     - Once installed, disconnect the device and reconnect, then close the app and re-launch it
     - This only needs to be done once per machine
 
-**Please note:** Windows insider builds are not supported by Zadig unless you disable driver signature enforcement.
+**Note:** Windows insider builds are not supported by Zadig unless you disable driver signature enforcement.
+
+**Note:** ADB is not available while the device is in diag mode on Windows. To return to regular USB/ADB mode, just disconnect and reconnect the device.
 
 ## Usage
 
-### Windows
+### Windows (EXPERIMENTAL)
 
 Run a terminal (Command Prompt or PowerShell) **as Administrator**, then:
 
@@ -79,6 +80,12 @@ sudo python3 main.py
 2. Connect the device and accept the ADB authorization prompt
 3. Click "Detect Device" in the app
 4. Use "Switch to Diag Mode" to get full diag access
+
+## How it works
+
+This tool interacts with the `/vendor/bin/kdiag_common` binary on device.  
+The binary exposes quite a lot of diagnostics-related methods that grant near full control of the device.
+Excluding the native functions, much of this is also possible once permissive root access is enabled.
 
 ## Credits
 
