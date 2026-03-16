@@ -80,7 +80,9 @@ def detect_mode() -> DeviceMode:
 def _adb_auth_status() -> Optional[str]:
     """Check adb devices output. Returns 'device', 'unauthorized', or None."""
     try:
-        r = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(
+            ["adb", "devices"], capture_output=True, text=True, timeout=5
+        )
         for line in r.stdout.strip().split("\n")[1:]:
             parts = line.split()
             if len(parts) >= 2:
@@ -96,7 +98,9 @@ def get_device_model_adb() -> str:
     try:
         r = subprocess.run(
             ["adb", "shell", "getprop", "ro.product.model"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         model = r.stdout.strip()
         return model if model else "device"
@@ -117,8 +121,7 @@ def adb_shell(cmd: str) -> str:
     """Execute a command via ADB shell, returns stdout+stderr."""
     try:
         r = subprocess.run(
-            ["adb", "shell", cmd],
-            capture_output=True, text=True, timeout=30
+            ["adb", "shell", cmd], capture_output=True, text=True, timeout=30
         )
         return r.stdout + r.stderr
     except FileNotFoundError:
@@ -134,7 +137,8 @@ def switch_to_adb() -> tuple:
     try:
         subprocess.Popen(
             ["adb", "shell", "svc", "usb", "setFunctions"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError:
         return False, "adb not found in PATH"
@@ -154,19 +158,25 @@ def switch_to_cdrom() -> bool:
     try:
         r = subprocess.run(
             ["adb", "shell", "svc", "usb", "setFunctions", "cdrom"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         return r.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
 
-def _get_cdrom_device(vendor: str = "KYOCERA", model: str = "E4810-MSS") -> Optional[str]:
+def _get_cdrom_device(
+    vendor: str = "KYOCERA", model: str = "E4810-MSS"
+) -> Optional[str]:
     """Find the SCSI generic device for the Kyocera CDROM."""
     try:
         result = subprocess.run(
             ["lsblk", "-J", "-o", "NAME,TYPE,VENDOR,MODEL,SERIAL"],
-            capture_output=True, text=True, check=True
+            capture_output=True,
+            text=True,
+            check=True,
         )
         data = json.loads(result.stdout)
     except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
@@ -236,6 +246,7 @@ def switch_to_diag() -> tuple[bool, str]:
             return False, "Failed to switch to CDROM mode via ADB"
         # Wait for CDROM device to appear
         import time
+
         for _ in range(20):
             time.sleep(0.5)
             if detect_mode() == DeviceMode.CDROM:
@@ -253,6 +264,7 @@ def switch_to_diag() -> tuple[bool, str]:
 
     # Wait for diag device
     import time
+
     for _ in range(20):
         time.sleep(0.5)
         if detect_mode() == DeviceMode.DIAG:

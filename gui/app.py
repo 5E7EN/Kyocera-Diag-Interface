@@ -26,17 +26,26 @@ class App(tk.Tk):
         top = ttk.Frame(self)
         top.pack(fill="x", padx=16, pady=(12, 0))
 
-        ttk.Label(top, text="Kyocera Diag Interface", style="Title.TLabel").pack(side="left")
+        ttk.Label(top, text="Kyocera Diag Interface", style="Title.TLabel").pack(
+            side="left"
+        )
 
-        credits_btn = ttk.Button(top, text="Info / Credits", command=lambda: show_credits(self))
+        credits_btn = ttk.Button(
+            top, text="Info / Credits", command=lambda: show_credits(self)
+        )
         credits_btn.pack(side="right")
 
         ttk.Separator(self, orient="horizontal").pack(fill="x", padx=16, pady=(10, 0))
 
         # Status bar - pack first so it claims bottom space before notebook expands
         self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(self, textvariable=self.status_var, style="Status.TLabel",
-                               anchor="w", padding=(16, 6))
+        status_bar = ttk.Label(
+            self,
+            textvariable=self.status_var,
+            style="Status.TLabel",
+            anchor="w",
+            padding=(16, 6),
+        )
         status_bar.pack(fill="x", side="bottom")
 
         # Tabbed notebook

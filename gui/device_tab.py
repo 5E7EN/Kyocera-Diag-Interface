@@ -34,12 +34,20 @@ class DeviceTab(ttk.Frame):
             "3. Click 'Detect Device' to identify the current mode\n"
             "4. Use 'Switch to Diag Mode' to transition: ADB -> CDROM -> Diag"
         )
-        ttk.Label(info_frame, text=info_text, foreground=styles.FG_SECONDARY,
-                  wraplength=700, justify="left").pack(anchor="w")
+        ttk.Label(
+            info_frame,
+            text=info_text,
+            foreground=styles.FG_SECONDARY,
+            wraplength=700,
+            justify="left",
+        ).pack(anchor="w")
 
-        ttk.Label(info_frame,
-                  text="Note: Diag switching has only been tested on E4610 and E4810 devices.",
-                  foreground=styles.WARNING, justify="left").pack(anchor="w", pady=(8, 0))
+        ttk.Label(
+            info_frame,
+            text="Note: Diag switching has only been tested on E4610 and E4810 devices.",
+            foreground=styles.WARNING,
+            justify="left",
+        ).pack(anchor="w", pady=(8, 0))
 
         # -- Device status --
         status_frame = ttk.LabelFrame(self, text=" Device Status ", padding=16)
@@ -59,34 +67,47 @@ class DeviceTab(ttk.Frame):
         btn_frame = ttk.Frame(status_frame)
         btn_frame.pack(fill="x", pady=(12, 0))
 
-        self.detect_btn = ttk.Button(btn_frame, text="Detect Device",
-                                     style="Accent.TButton", command=self.refresh_status)
+        self.detect_btn = ttk.Button(
+            btn_frame,
+            text="Detect Device",
+            style="Accent.TButton",
+            command=self.refresh_status,
+        )
         self.detect_btn.pack(side="left", padx=(0, 8))
 
-        self.switch_btn = ttk.Button(btn_frame, text="Switch to Diag Mode",
-                                     command=self._switch_to_diag)
+        self.switch_btn = ttk.Button(
+            btn_frame, text="Switch to Diag Mode", command=self._switch_to_diag
+        )
         self.switch_btn.pack(side="left", padx=(0, 8))
 
-        self.adb_btn = ttk.Button(btn_frame, text="Switch to ADB Mode (Regular)",
-                                  command=self._switch_to_adb)
+        self.adb_btn = ttk.Button(
+            btn_frame, text="Switch to ADB Mode (Regular)", command=self._switch_to_adb
+        )
         self.adb_btn.pack(side="left", padx=(0, 8))
 
-        self.reboot_btn = ttk.Button(btn_frame, text="Reboot Device",
-                                     style="Success.TButton", command=self._reboot_device)
+        self.reboot_btn = ttk.Button(
+            btn_frame,
+            text="Reboot Device",
+            style="Success.TButton",
+            command=self._reboot_device,
+        )
         self.reboot_btn.pack(side="left", padx=(0, 8))
 
         # -- Probe section --
         probe_frame = ttk.LabelFrame(self, text=" Diag Status", padding=16)
         probe_frame.pack(fill="both", expand=True, padx=16, pady=8)
 
-        self.probe_btn = ttk.Button(probe_frame, text="Refresh",
-                                    style="Accent.TButton", command=self._run_probe)
+        self.probe_btn = ttk.Button(
+            probe_frame, text="Refresh", style="Accent.TButton", command=self._run_probe
+        )
         self.probe_btn.pack(anchor="w", pady=(0, 8))
 
         text_frame = ttk.Frame(probe_frame)
         text_frame.pack(fill="both", expand=True)
 
-        self.probe_text = styles.make_text_widget(text_frame, state="disabled", height=10)
+        self.probe_text = styles.make_text_widget(
+            text_frame, state="disabled", height=10
+        )
         self.probe_text.pack(side="left", fill="both", expand=True)
 
         sb = styles.make_scrollbar(text_frame, self.probe_text)
@@ -114,17 +135,32 @@ class DeviceTab(ttk.Frame):
         self.detect_btn.configure(state="normal")
 
         mode_info = {
-            device.DeviceMode.DISCONNECTED: ("Disconnected", styles.ERROR,
-                                              "No Kyocera device detected. Check USB connection."),
-            device.DeviceMode.ADB: ("ADB Mode", styles.SUCCESS,
-                                     f"Model: {model} | VID:PID 0482:0A9B | ADB authorized"),
-            device.DeviceMode.ADB_UNAUTHORIZED: ("ADB Unauthorized", styles.ERROR,
-                                                  "Device connected but ADB not authorized. "
-                                                  "Accept the USB debugging prompt on the device."),
-            device.DeviceMode.CDROM: ("CDROM Mode", styles.WARNING,
-                                       "VID:PID 0482:0A8F | Ready for diag init SCSI command"),
-            device.DeviceMode.DIAG: ("Diag Mode", styles.ACCENT,
-                                      f"Model: {model} | VID:PID 0482:0A9D | Full diag access | ADB unavailable in this mode"),
+            device.DeviceMode.DISCONNECTED: (
+                "Disconnected",
+                styles.ERROR,
+                "No Kyocera device detected. Check USB connection.",
+            ),
+            device.DeviceMode.ADB: (
+                "ADB Mode",
+                styles.SUCCESS,
+                f"Model: {model} | VID:PID 0482:0A9B | ADB authorized",
+            ),
+            device.DeviceMode.ADB_UNAUTHORIZED: (
+                "ADB Unauthorized",
+                styles.ERROR,
+                "Device connected but ADB not authorized. "
+                "Accept the USB debugging prompt on the device.",
+            ),
+            device.DeviceMode.CDROM: (
+                "CDROM Mode",
+                styles.WARNING,
+                "VID:PID 0482:0A8F | Ready for diag init SCSI command",
+            ),
+            device.DeviceMode.DIAG: (
+                "Diag Mode",
+                styles.ACCENT,
+                f"Model: {model} | VID:PID 0482:0A9D | Full diag access | ADB unavailable in this mode",
+            ),
         }
 
         label, color, detail = mode_info[mode]
@@ -143,7 +179,9 @@ class DeviceTab(ttk.Frame):
         self.reboot_btn.configure(state="normal" if can_reboot else "disabled")
 
         # Enable/disable probe button, auto-probe if entering diag mode
-        self.probe_btn.configure(state="normal" if mode == device.DeviceMode.DIAG else "disabled")
+        self.probe_btn.configure(
+            state="normal" if mode == device.DeviceMode.DIAG else "disabled"
+        )
         if mode == device.DeviceMode.DIAG:
             self.after(100, self._run_probe)
 
@@ -185,9 +223,9 @@ class DeviceTab(ttk.Frame):
 
         def _do_reboot():
             import subprocess
+
             try:
-                subprocess.run(["adb", "reboot"], timeout=10,
-                               capture_output=True)
+                subprocess.run(["adb", "reboot"], timeout=10, capture_output=True)
                 self.after(0, lambda: self._set_status("Reboot command sent"))
             except Exception as e:
                 self.after(0, lambda: self._set_status(f"Reboot failed: {e}"))
@@ -233,22 +271,30 @@ class DeviceTab(ttk.Frame):
 
         r = results["reset_status"]
         if r["ok"]:
-            rows.append(("DNAND Reset", f"status={r['dnand_status']}  data={r['reset_data']:#010x}"))
+            rows.append(
+                (
+                    "DNAND Reset",
+                    f"status={r['dnand_status']}  data={r['reset_data']:#010x}",
+                )
+            )
         else:
             rows.append(("DNAND Reset", "FAILED"))
 
         r = results["factory_cmdline"]
         if r["ok"]:
-            val = (f"kcfactory={'Y' if r['kcfactory'] else 'N'}  "
-                   f"kcmount={'Y' if r['kcmount'] else 'N'}  "
-                   f"kcpermissive={'Y' if r['kcpermissive'] else 'N'}  "
-                   f"(raw={r['flags']:#010x})")
+            val = (
+                f"kcfactory={'Y' if r['kcfactory'] else 'N'}  "
+                f"kcmount={'Y' if r['kcmount'] else 'N'}  "
+                f"kcpermissive={'Y' if r['kcpermissive'] else 'N'}  "
+                f"(raw={r['flags']:#010x})"
+            )
             rows.append(("Factory Cmdline", val))
         else:
             rows.append(("Factory Cmdline", "FAILED"))
 
         # Use tab to align values; set tab stop wide enough for longest label
         import tkinter.font as tkfont
+
         font_obj = tkfont.Font(font=self.probe_text.cget("font"))
         longest = max(font_obj.measure(label + ":  ") for label, _ in rows)
         self.probe_text.configure(tabs=(longest,))
@@ -260,7 +306,9 @@ class DeviceTab(ttk.Frame):
         if results["all_ok"]:
             self.probe_text.insert("end", "All reads OK\n")
         else:
-            self.probe_text.insert("end", "[!] One or more reads failed - do not attempt DNAND write\n")
+            self.probe_text.insert(
+                "end", "[!] One or more reads failed - do not attempt DNAND write\n"
+            )
 
         self.probe_text.configure(state="disabled")
         self._set_status("Probe complete")

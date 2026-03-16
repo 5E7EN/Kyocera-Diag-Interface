@@ -27,47 +27,64 @@ class SELinuxTab(ttk.Frame):
         header = ttk.Frame(self, padding=(16, 16, 16, 8))
         header.pack(fill="x")
 
-        ttk.Label(header, text="SELinux Control", style="Heading.TLabel").pack(anchor="w")
-        se_desc = ttk.Label(header,
-                  text="Probe and modify the SELinux enforcement state via factory cmdline flags. "
-                       "Requires diag mode. Changes take effect after reboot.",
-                  foreground=styles.FG_DIM, justify="left")
+        ttk.Label(header, text="SELinux Control", style="Heading.TLabel").pack(
+            anchor="w"
+        )
+        se_desc = ttk.Label(
+            header,
+            text="Probe and modify the SELinux enforcement state via factory cmdline flags. "
+            "Requires diag mode. Changes take effect after reboot.",
+            foreground=styles.FG_DIM,
+            justify="left",
+        )
         se_desc.pack(anchor="w", fill="x", pady=(4, 0))
 
         # Current status card
         status_card = ttk.LabelFrame(self, text=" Current Status ", padding=16)
         status_card.pack(fill="x", padx=16, pady=8)
 
-        self.selinux_status = ttk.Label(status_card, text="Unknown", font=styles.FONT_HEADING)
+        self.selinux_status = ttk.Label(
+            status_card, text="Unknown", font=styles.FONT_HEADING
+        )
         self.selinux_status.pack(anchor="w")
 
         self.selinux_detail = ttk.Label(status_card, text="", foreground=styles.FG_DIM)
         self.selinux_detail.pack(anchor="w", pady=(4, 0))
 
-        self.probe_btn = ttk.Button(status_card, text="Check Status",
-                                    style="Accent.TButton", command=self._probe_selinux)
+        self.probe_btn = ttk.Button(
+            status_card,
+            text="Check Status",
+            style="Accent.TButton",
+            command=self._probe_selinux,
+        )
         self.probe_btn.pack(anchor="w", pady=(12, 0))
 
         # Actions card
         action_card = ttk.LabelFrame(self, text=" Actions", padding=16)
         action_card.pack(fill="x", padx=16, pady=8)
 
-        act_desc = ttk.Label(action_card,
-                  text="The device should be rebooted for changes to take effect.",
-                  foreground=styles.FG_SECONDARY, justify="left")
+        act_desc = ttk.Label(
+            action_card,
+            text="The device should be rebooted for changes to take effect.",
+            foreground=styles.FG_SECONDARY,
+            justify="left",
+        )
         act_desc.pack(anchor="w", fill="x", pady=(0, 12))
 
         btn_row = ttk.Frame(action_card)
         btn_row.pack(fill="x")
 
         self.permissive_btn = ttk.Button(
-            btn_row, text="Set Permissive",
-            style="Accent.TButton", command=self._set_permissive)
+            btn_row,
+            text="Set Permissive",
+            style="Accent.TButton",
+            command=self._set_permissive,
+        )
         self.permissive_btn.pack(side="left", padx=(0, 8))
 
         self.restore_btn = ttk.Button(
-            btn_row, text="Restore Enforcing",
-            command=self._restore_enforcing)
+            btn_row, text="Restore Enforcing", command=self._restore_enforcing
+        )
         self.restore_btn.pack(side="left")
 
         # Log output
@@ -77,7 +94,9 @@ class SELinuxTab(ttk.Frame):
         text_container = ttk.Frame(log_frame)
         text_container.pack(fill="both", expand=True)
 
-        self.log_text = styles.make_text_widget(text_container, state="disabled", height=8)
+        self.log_text = styles.make_text_widget(
+            text_container, state="disabled", height=8
+        )
         self.log_text.pack(side="left", fill="both", expand=True)
 
         self.log_text.tag_configure("ok", foreground=styles.SUCCESS)
@@ -142,7 +161,9 @@ class SELinuxTab(ttk.Frame):
             self.selinux_status.configure(text="Permissive", foreground=styles.SUCCESS)
             self._log(f"kcpermissive flag: SET", "ok")
         else:
-            self.selinux_status.configure(text="Enforcing (default)", foreground=styles.WARNING)
+            self.selinux_status.configure(
+                text="Enforcing (default)", foreground=styles.WARNING
+            )
             self._log(f"kcpermissive flag: NOT set", "warn")
 
         detail_parts = []
@@ -167,9 +188,8 @@ class SELinuxTab(ttk.Frame):
 
         if not messagebox.askyesno(
             "Confirm",
-            "SELinux will be set to \"permissive\" on next reboot.\n\n"
-            "Continue?",
-            icon="warning"
+            'SELinux will be set to "permissive" on next reboot.\n\n' "Continue?",
+            icon="warning",
         ):
             return
 
@@ -181,8 +201,7 @@ class SELinuxTab(ttk.Frame):
 
         if not messagebox.askyesno(
             "Confirm",
-            "SELinux will be restored to \"enforcing\" on next reboot.\n\n"
-            "Continue?"
+            'SELinux will be restored to "enforcing" on next reboot.\n\n' "Continue?",
         ):
             return
 

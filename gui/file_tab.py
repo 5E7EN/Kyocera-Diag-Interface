@@ -29,10 +29,13 @@ class FileTab(ttk.Frame):
         header.pack(fill="x")
 
         ttk.Label(header, text="File Pull", style="Heading.TLabel").pack(anchor="w")
-        file_desc = ttk.Label(header,
-                  text="Download files from the device using chunked base64 over the diag shell. "
-                       "Requires diag mode. Large files may take a while. Access level is same as \"Shell\" user.",
-                  foreground=styles.FG_DIM, justify="left")
+        file_desc = ttk.Label(
+            header,
+            text="Download files from the device using chunked base64 over the diag shell. "
+            'Requires diag mode. Large files may take a while. Access level is same as "Shell" user.',
+            foreground=styles.FG_DIM,
+            justify="left",
+        )
         file_desc.pack(anchor="w", fill="x", pady=(4, 0))
 
         # Path inputs
@@ -42,9 +45,12 @@ class FileTab(ttk.Frame):
         # Remote path
         ttk.Label(paths_frame, text="Remote path (on device):").pack(anchor="w")
         self.remote_entry = tk.Entry(
-            paths_frame, font=styles.FONT_TERMINAL,
-            bg=styles.BG_ENTRY, fg=styles.FG_PRIMARY,
-            insertbackground=styles.FG_PRIMARY, relief="flat",
+            paths_frame,
+            font=styles.FONT_TERMINAL,
+            bg=styles.BG_ENTRY,
+            fg=styles.FG_PRIMARY,
+            insertbackground=styles.FG_PRIMARY,
+            relief="flat",
         )
         self.remote_entry.pack(fill="x", ipady=6, pady=(4, 12))
         self.remote_entry.insert(0, "/vendor/bin/kdiag_common")
@@ -55,9 +61,12 @@ class FileTab(ttk.Frame):
         local_row.pack(fill="x", pady=(4, 0))
 
         self.local_entry = tk.Entry(
-            local_row, font=styles.FONT_TERMINAL,
-            bg=styles.BG_ENTRY, fg=styles.FG_PRIMARY,
-            insertbackground=styles.FG_PRIMARY, relief="flat",
+            local_row,
+            font=styles.FONT_TERMINAL,
+            bg=styles.BG_ENTRY,
+            fg=styles.FG_PRIMARY,
+            insertbackground=styles.FG_PRIMARY,
+            relief="flat",
         )
         self.local_entry.pack(side="left", fill="x", expand=True, ipady=6)
         # self.local_entry.insert(0, "")
@@ -70,8 +79,9 @@ class FileTab(ttk.Frame):
         progress_frame.pack(fill="x")
 
         self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ttk.Progressbar(progress_frame, variable=self.progress_var,
-                                            maximum=100, mode="determinate")
+        self.progress_bar = ttk.Progressbar(
+            progress_frame, variable=self.progress_var, maximum=100, mode="determinate"
+        )
         self.progress_bar.pack(fill="x")
 
         self.progress_label = ttk.Label(progress_frame, text="", style="Dim.TLabel")
@@ -81,8 +91,9 @@ class FileTab(ttk.Frame):
         btn_frame = ttk.Frame(self, padding=(16, 8))
         btn_frame.pack(fill="x")
 
-        self.pull_btn = ttk.Button(btn_frame, text="Pull File",
-                                   style="Accent.TButton", command=self._pull)
+        self.pull_btn = ttk.Button(
+            btn_frame, text="Pull File", style="Accent.TButton", command=self._pull
+        )
         self.pull_btn.pack(side="left")
 
         # Log
@@ -92,7 +103,9 @@ class FileTab(ttk.Frame):
         text_container = ttk.Frame(log_frame)
         text_container.pack(fill="both", expand=True)
 
-        self.log_text = styles.make_text_widget(text_container, state="disabled", height=6)
+        self.log_text = styles.make_text_widget(
+            text_container, state="disabled", height=6
+        )
         self.log_text.pack(side="left", fill="both", expand=True)
 
         self.log_text.tag_configure("ok", foreground=styles.SUCCESS)
@@ -148,9 +161,7 @@ class FileTab(ttk.Frame):
 
     def _update_progress(self, offset: int, total: int, pct: float):
         self.progress_var.set(pct)
-        self.progress_label.configure(
-            text=f"{offset:,} / {total:,} bytes ({pct:.1f}%)"
-        )
+        self.progress_label.configure(text=f"{offset:,} / {total:,} bytes ({pct:.1f}%)")
 
     def _on_done(self, ok: bool, remote: str, local: str):
         self.pull_btn.configure(state="normal")

@@ -15,9 +15,9 @@ logger = logging.getLogger("kdiag.diag")
 
 # USB identifiers
 KYOCERA_VID = 0x0482
-PID_DIAG = 0x0A9D       # Diag mode
-PID_CDROM = 0x0A8F      # CDROM mode
-PID_CHARGE = 0x0A9B     # Regular "Charge only" mode
+PID_DIAG = 0x0A9D  # Diag mode
+PID_CDROM = 0x0A8F  # CDROM mode
+PID_CHARGE = 0x0A9B  # Regular "Charge only" mode
 
 # Diag protocol constants
 DIAG_SUBSYS_CMD_F = 0x4B
@@ -38,10 +38,14 @@ FACTORY_CLEAR = 0x00
 
 def _header(cmd_code: int) -> bytes:
     """4-byte subsystem header."""
-    return bytes([
-        DIAG_SUBSYS_CMD_F, KDIAG_SUBSYS_ID,
-        cmd_code & 0xFF, (cmd_code >> 8) & 0xFF,
-    ])
+    return bytes(
+        [
+            DIAG_SUBSYS_CMD_F,
+            KDIAG_SUBSYS_ID,
+            cmd_code & 0xFF,
+            (cmd_code >> 8) & 0xFF,
+        ]
+    )
 
 
 def _transact(ep_out, ep_in, pkt: bytes, timeout: float = 2.0) -> Optional[bytes]:
@@ -87,13 +91,14 @@ def find_device(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
 
 # --- Read commands ---
 
+
 def read_build_id(ep_out, ep_in) -> dict:
     payload = _transact(ep_out, ep_in, _header(CMD_READ_BUILD_ID))
     if not payload or len(payload) < 7:
         return {"ok": False, "raw": payload.hex() if payload else ""}
     overflow = struct.unpack_from("<H", payload, 4)[0]
     str_len = payload[6]
-    value = payload[7:7 + str_len].rstrip(b"\x00").decode("ascii", errors="replace")
+    value = payload[7 : 7 + str_len].rstrip(b"\x00").decode("ascii", errors="replace")
     return {"ok": True, "value": value, "truncated": overflow > 0}
 
 
@@ -112,7 +117,11 @@ def read_reset_status(ep_out, ep_in) -> dict:
         return {"ok": False, "raw": payload.hex() if payload else ""}
     dnand_status = struct.unpack_from("<h", payload, 4)[0]
     reset_data = struct.unpack_from("<I", payload, 6)[0]
-    return {"ok": dnand_status == 0, "dnand_status": dnand_status, "reset_data": reset_data}
+    return {
+        "ok": dnand_status == 0,
+        "dnand_status": dnand_status,
+        "reset_data": reset_data,
+    }
 
 
 def read_factory_cmdline(ep_out, ep_in) -> dict:
@@ -133,7 +142,10 @@ def read_factory_cmdline(ep_out, ep_in) -> dict:
 
 # --- Shell execution ---
 
-def exec_command(cmd: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG, timeout_s: float = 10.0) -> str:
+
+def exec_command(
+    cmd: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG, timeout_s: float = 10.0
+) -> str:
     """Execute shell command via diag and return stdout."""
     dev, iface, ep_out, ep_in = find_device(vid, pid)
     if not dev:
@@ -174,6 +186,7 @@ def exec_command(cmd: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG, timeout_
 
 # --- Probe ---
 
+
 def probe(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
     """Read-only probe. Returns dict with all results."""
     dev, iface, ep_out, ep_in = find_device(vid, pid)
@@ -195,6 +208,7 @@ def probe(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
 
 # --- SELinux ---
 
+
 def set_factory_flag(flags: int, vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> bool:
     """Write factory mode flag to DNAND ID 9."""
     dev, iface, ep_out, ep_in = find_device(vid, pid)
@@ -214,9 +228,15 @@ def set_factory_flag(flags: int, vid: int = KYOCERA_VID, pid: int = PID_DIAG) ->
 
 # --- File pull ---
 
-def pull_file(remote_path: str, local_path: str, chunk_size: int = 4096,
-              vid: int = KYOCERA_VID, pid: int = PID_DIAG,
-              progress_cb=None) -> bool:
+
+def pull_file(
+    remote_path: str,
+    local_path: str,
+    chunk_size: int = 4096,
+    vid: int = KYOCERA_VID,
+    pid: int = PID_DIAG,
+    progress_cb=None,
+) -> bool:
     """Pull a file via diag shell using chunked base64. progress_cb(offset, total) called per chunk."""
     dev, iface, ep_out, ep_in = find_device(vid, pid)
     if not dev:

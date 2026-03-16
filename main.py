@@ -23,6 +23,7 @@ def main():
         sys.path.insert(0, project_root)
 
     from gui.app import App
+
     app = App()
     app.mainloop()
 

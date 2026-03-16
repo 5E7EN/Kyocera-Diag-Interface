@@ -32,11 +32,16 @@ class ShellTab(ttk.Frame):
         info_frame = ttk.Frame(self, padding=(16, 8))
         info_frame.pack(fill="x")
 
-        ttk.Label(info_frame, text="Interactive Shell", style="Heading.TLabel").pack(anchor="w")
-        desc_label = ttk.Label(info_frame,
-                  text="Commands execute via ADB (in ADB mode) or Diag protocol (in Diag mode). "
-                       "Each command runs independently - cd and other stateful commands do not persist between executions.",
-                  foreground=styles.FG_DIM, justify="left")
+        ttk.Label(info_frame, text="Interactive Shell", style="Heading.TLabel").pack(
+            anchor="w"
+        )
+        desc_label = ttk.Label(
+            info_frame,
+            text="Commands execute via ADB (in ADB mode) or Diag protocol (in Diag mode). "
+            "Each command runs independently - cd and other stateful commands do not persist between executions.",
+            foreground=styles.FG_DIM,
+            justify="left",
+        )
         desc_label.pack(anchor="w", fill="x", pady=(4, 0))
 
         # Warning banner
@@ -46,11 +51,15 @@ class ShellTab(ttk.Frame):
 
         warn_label = ttk.Label(
             warn_frame,
-            text=("DISCLAIMER: Unless your bootloader is unlocked, any edits to /system or other "
-                  "verified partitions WILL BRICK YOUR DEVICE. "
-                  "We take no responsibility for anything that happens to your device."),
-            foreground=styles.ERROR, background="#2a0a0f",
-            justify="left", padding=(10, 8),
+            text=(
+                "DISCLAIMER: Unless your bootloader is unlocked, any edits to /system or other "
+                "verified partitions WILL BRICK YOUR DEVICE. "
+                "We take no responsibility for anything that happens to your device."
+            ),
+            foreground=styles.ERROR,
+            background="#2a0a0f",
+            justify="left",
+            padding=(10, 8),
         )
         warn_label.pack(fill="x")
 
@@ -59,8 +68,12 @@ class ShellTab(ttk.Frame):
         term_frame.pack(fill="both", expand=True, padx=16, pady=(4, 8))
 
         self.terminal = styles.make_text_widget(
-            term_frame, state="disabled", wrap="word",
-            bg="#0d1117", fg="#c9d1d9", font=styles.FONT_TERMINAL,
+            term_frame,
+            state="disabled",
+            wrap="word",
+            bg="#0d1117",
+            fg="#c9d1d9",
+            font=styles.FONT_TERMINAL,
         )
         self.terminal.pack(side="left", fill="both", expand=True)
 
@@ -77,14 +90,19 @@ class ShellTab(ttk.Frame):
         input_frame = ttk.Frame(self, padding=(16, 0, 16, 12))
         input_frame.pack(fill="x")
 
-        self.prompt_label = ttk.Label(input_frame, text="$ ", font=styles.FONT_TERMINAL,
-                                       foreground=styles.ACCENT)
+        self.prompt_label = ttk.Label(
+            input_frame, text="$ ", font=styles.FONT_TERMINAL, foreground=styles.ACCENT
+        )
         self.prompt_label.pack(side="left")
 
         self.cmd_entry = tk.Entry(
-            input_frame, font=styles.FONT_TERMINAL,
-            bg="#0d1117", fg="#c9d1d9", insertbackground="#c9d1d9",
-            relief="flat", borderwidth=0,
+            input_frame,
+            font=styles.FONT_TERMINAL,
+            bg="#0d1117",
+            fg="#c9d1d9",
+            insertbackground="#c9d1d9",
+            relief="flat",
+            borderwidth=0,
         )
         self.cmd_entry.pack(side="left", fill="x", expand=True, ipady=6)
         self.cmd_entry.bind("<Return>", self._on_enter)
@@ -92,12 +110,15 @@ class ShellTab(ttk.Frame):
         self.cmd_entry.bind("<Down>", self._history_down)
         self.cmd_entry.focus_set()
 
-        send_btn = ttk.Button(input_frame, text="Execute", style="Accent.TButton",
-                              command=self._on_enter)
+        send_btn = ttk.Button(
+            input_frame, text="Execute", style="Accent.TButton", command=self._on_enter
+        )
         send_btn.pack(side="right", padx=(8, 0))
 
         # Write initial message
-        self._append_text("Type commands below. Use Up/Down arrows for history.\n\n", "info")
+        self._append_text(
+            "Type commands below. Use Up/Down arrows for history.\n\n", "info"
+        )
 
     def _get_prompt_string(self) -> str:
         """Build prompt based on current mode and access level."""
@@ -141,19 +162,27 @@ class ShellTab(ttk.Frame):
         if mode == device.DeviceMode.DISCONNECTED:
             self._append_text(self._get_prompt_string(), "prompt")
             self._append_text(cmd + "\n")
-            self._append_text("Error: No device connected. Detect device first.\n\n", "error")
+            self._append_text(
+                "Error: No device connected. Detect device first.\n\n", "error"
+            )
             return
 
         if mode == device.DeviceMode.ADB_UNAUTHORIZED:
             self._append_text(self._get_prompt_string(), "prompt")
             self._append_text(cmd + "\n")
-            self._append_text("Error: ADB not authorized. Accept the USB debugging prompt on the device.\n\n", "error")
+            self._append_text(
+                "Error: ADB not authorized. Accept the USB debugging prompt on the device.\n\n",
+                "error",
+            )
             return
 
         if mode == device.DeviceMode.CDROM:
             self._append_text(self._get_prompt_string(), "prompt")
             self._append_text(cmd + "\n")
-            self._append_text("Error: Device is in CDROM mode. Switch to Diag or ADB first.\n\n", "error")
+            self._append_text(
+                "Error: Device is in CDROM mode. Switch to Diag or ADB first.\n\n",
+                "error",
+            )
             return
 
         self._busy = True
