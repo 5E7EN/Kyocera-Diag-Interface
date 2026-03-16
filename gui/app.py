@@ -8,6 +8,7 @@ from .device_tab import DeviceTab
 from .shell_tab import ShellTab
 from .selinux_tab import SELinuxTab
 from .file_tab import FileTab
+from .sysprop_tab import SysPropTab
 from .credits_dialog import show_credits
 
 
@@ -62,17 +63,20 @@ class App(tk.Tk):
         self.shell_tab = ShellTab(self.notebook, self.device_tab)
         self.selinux_tab = SELinuxTab(self.notebook, self.device_tab)
         self.file_tab = FileTab(self.notebook, self.device_tab)
+        self.sysprop_tab = SysPropTab(self.notebook, self.device_tab)
 
         self.notebook.add(self.device_tab, text="  Device  ")
         self.notebook.add(self.shell_tab, text="  Shell  ")
         self.notebook.add(self.selinux_tab, text="  SELinux  ")
         self.notebook.add(self.file_tab, text="  File Pull  ")
+        self.notebook.add(self.sysprop_tab, text="  Properties  ")
 
         # Share status bar with tabs
         self.device_tab.set_status_var(self.status_var)
         self.shell_tab.set_status_var(self.status_var)
         self.selinux_tab.set_status_var(self.status_var)
         self.file_tab.set_status_var(self.status_var)
+        self.sysprop_tab.set_status_var(self.status_var)
 
         # Initial device detection
         self.after(200, self.device_tab.refresh_status)

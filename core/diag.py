@@ -30,6 +30,9 @@ CMD_SHELL_OUTPUT = 0x2081
 CMD_READ_RESET_STATUS = 0x2061
 CMD_READ_FACTORY_MODE = 0x20C1
 CMD_WRITE_FACTORY_MODE = 0x20C0
+CMD_READ_SYSPROP = 0x20A0
+CMD_WRITE_SYSPROP = 0x20A1
+CMD_RESET_PREDTM = 0x20A2
 
 # Factory mode flags
 FACTORY_PERMISSIVE = 0x04
@@ -313,6 +316,53 @@ def pull_file(
             if len(chunk) < to_read:
                 break
     return True
+
+
+# --- System properties ---
+
+
+def get_sysprop(key: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
+    """Read a system property or predtm key."""
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
+    if not dev:
+        raise ConnectionError("Diag device not found")
+    key_bytes = key.encode("ascii") + b"\x00"
+    pkt = _header(CMD_READ_SYSPROP) + key_bytes
+    payload = _transact(ep_out, ep_in, pkt, timeout=3.0)
+    if not payload or len(payload) < 6:
+        return {"ok": False, "raw": payload.hex() if payload else ""}
+    status = struct.unpack_from("<H", payload, 4)[0]
+    value = payload[6:].rstrip(b"\x00").decode("ascii", errors="replace")
+    return {"ok": status == 0, "status": status, "value": value}
+
+
+def set_sysprop(
+    key: str, value: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG
+) -> dict:
+    """Write a system property or predtm key."""
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
+    if not dev:
+        raise ConnectionError("Diag device not found")
+    prop_bytes = key.encode("ascii") + b"\x00" + value.encode("ascii") + b"\x00"
+    pkt = _header(CMD_WRITE_SYSPROP) + prop_bytes
+    payload = _transact(ep_out, ep_in, pkt, timeout=3.0)
+    if not payload or len(payload) < 6:
+        return {"ok": False, "raw": payload.hex() if payload else ""}
+    status = struct.unpack_from("<H", payload, 4)[0]
+    return {"ok": status == 0, "status": status}
+
+
+def reset_predtm(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
+    """Reset predtm property store."""
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
+    if not dev:
+        raise ConnectionError("Diag device not found")
+    pkt = _header(CMD_RESET_PREDTM)
+    payload = _transact(ep_out, ep_in, pkt, timeout=5.0)
+    if not payload or len(payload) < 6:
+        return {"ok": False, "raw": payload.hex() if payload else ""}
+    status = struct.unpack_from("<H", payload, 4)[0]
+    return {"ok": status == 0, "status": status}
 
 
 def _exec_shell(ep_out, ep_in, cmd: str, timeout_s: float = 10.0) -> str:
