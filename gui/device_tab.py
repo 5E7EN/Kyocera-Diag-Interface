@@ -226,7 +226,8 @@ class DeviceTab(ttk.Frame):
                 device.reboot()
                 self.after(0, lambda: self._set_status("Reboot command sent"))
             except Exception as e:
-                self.after(0, lambda: self._set_status(f"Reboot failed: {e}"))
+                msg = f"Reboot failed: {e}"
+                self.after(0, lambda: self._set_status(msg))
             self.after(0, lambda: self.reboot_btn.configure(state="normal"))
 
         threading.Thread(target=_do_reboot, daemon=True).start()
@@ -247,7 +248,8 @@ class DeviceTab(ttk.Frame):
                 results = diag.probe()
                 self.after(0, lambda: self._show_probe(results))
             except ConnectionError as e:
-                self.after(0, lambda: self._show_probe_error(str(e)))
+                msg = str(e)
+                self.after(0, lambda: self._show_probe_error(msg))
 
         threading.Thread(target=_do_probe, daemon=True).start()
 

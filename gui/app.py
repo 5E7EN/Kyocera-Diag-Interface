@@ -16,7 +16,12 @@ class App(tk.Tk):
         super().__init__()
         self.title("Kyocera Diag Interface")
         self.minsize(750, 550)
-        self.attributes("-zoomed", True)
+        import sys
+
+        if sys.platform == "win32":
+            self.state("zoomed")
+        else:
+            self.attributes("-zoomed", True)
 
         styles.apply_theme(self)
         self._build_ui()

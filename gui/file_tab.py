@@ -155,7 +155,8 @@ class FileTab(ttk.Frame):
                 ok = diag.pull_file(remote, local, progress_cb=_progress_cb)
                 self.after(0, lambda: self._on_done(ok, remote, local))
             except Exception as e:
-                self.after(0, lambda: self._on_error(str(e)))
+                msg = str(e)
+                self.after(0, lambda: self._on_error(msg))
 
         threading.Thread(target=_do_pull, daemon=True).start()
 

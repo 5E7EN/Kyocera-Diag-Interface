@@ -69,7 +69,12 @@ def find_device(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
     dev = usb.core.find(idVendor=vid, idProduct=pid)
     if not dev:
         return None, -1, None, None
-    for intf in dev.get_active_configuration():
+    try:
+        cfg = dev.get_active_configuration()
+    except usb.core.USBError as e:
+        logger.error(f"Cannot open USB device: {e}")
+        return None, -1, None, None
+    for intf in cfg:
         if intf.bInterfaceClass != 0xFF or intf.bInterfaceSubClass == 0x42:
             continue
         ep_out = usb.util.find_descriptor(
@@ -83,8 +88,12 @@ def find_device(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
             == usb.util.ENDPOINT_IN,
         )
         if ep_out and ep_in:
-            if dev.is_kernel_driver_active(intf.bInterfaceNumber):
-                dev.detach_kernel_driver(intf.bInterfaceNumber)
+            try:
+                if dev.is_kernel_driver_active(intf.bInterfaceNumber):
+                    dev.detach_kernel_driver(intf.bInterfaceNumber)
+            except (usb.core.USBError, NotImplementedError):
+                # is_kernel_driver_active / detach not supported on Windows
+                pass
             return dev, intf.bInterfaceNumber, ep_out, ep_in
     return None, -1, None, None
 
@@ -143,45 +152,86 @@ def read_factory_cmdline(ep_out, ep_in) -> dict:
 # --- Shell execution ---
 
 
+# --- Persistent connection ---
+
+_conn = None  # Cached (dev, iface, ep_out, ep_in)
+
+
+def _get_connection(vid: int = KYOCERA_VID, pid: int = PID_DIAG):
+    """Get or create a persistent USB connection to the diag device."""
+    global _conn
+    if _conn is not None:
+        dev, iface, ep_out, ep_in = _conn
+        # Verify device is still present
+        try:
+            dev.get_active_configuration()
+            return dev, iface, ep_out, ep_in
+        except (usb.core.USBError, Exception):
+            _conn = None
+
+    dev, iface, ep_out, ep_in = find_device(vid, pid)
+    if not dev:
+        return None, -1, None, None
+    try:
+        usb.util.claim_interface(dev, iface)
+    except usb.core.USBError as e:
+        logger.error(f"Failed to claim interface: {e}")
+        return None, -1, None, None
+    _conn = (dev, iface, ep_out, ep_in)
+    return dev, iface, ep_out, ep_in
+
+
+def close_connection():
+    """Release the persistent USB connection."""
+    global _conn
+    if _conn is not None:
+        dev, iface, _, _ = _conn
+        try:
+            usb.util.release_interface(dev, iface)
+        except Exception:
+            pass
+        try:
+            usb.util.dispose_resources(dev)
+        except Exception:
+            pass
+        _conn = None
+
+
 def exec_command(
     cmd: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG, timeout_s: float = 10.0
 ) -> str:
     """Execute shell command via diag and return stdout."""
-    dev, iface, ep_out, ep_in = find_device(vid, pid)
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
-    try:
-        usb.util.claim_interface(dev, iface)
-        cmd_bytes = cmd.encode()
-        if len(cmd_bytes) > 1023:
-            raise ValueError(f"Command too long ({len(cmd_bytes)} bytes, max 1023)")
-        pkt = _header(CMD_SHELL_OUTPUT) + cmd_bytes + b"\x00"
-        header = pkt[:4]
-        ep_out.write(hdlc.encode(pkt))
+    cmd_bytes = cmd.encode()
+    if len(cmd_bytes) > 1023:
+        raise ValueError(f"Command too long ({len(cmd_bytes)} bytes, max 1023)")
+    pkt = _header(CMD_SHELL_OUTPUT) + cmd_bytes + b"\x00"
+    header = pkt[:4]
+    ep_out.write(hdlc.encode(pkt))
 
-        chunks = []
-        deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline:
-            try:
-                raw = ep_in.read(16384, timeout=500)
-            except usb.core.USBTimeoutError:
-                if chunks:
-                    break
-                continue
-            payload = hdlc.decode(bytes(raw))
-            if not payload or not payload.startswith(header):
-                continue
-            if len(payload) < 9:
+    chunks = []
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            raw = ep_in.read(16384, timeout=500)
+        except usb.core.USBTimeoutError:
+            if chunks:
                 break
-            final_flag = payload[8]
-            chunk = payload[9:].rstrip(b"\x00").decode("ascii", errors="replace")
-            if chunk:
-                chunks.append(chunk)
-            if final_flag:
-                break
-        return "".join(chunks)
-    finally:
-        usb.util.dispose_resources(dev)
+            continue
+        payload = hdlc.decode(bytes(raw))
+        if not payload or not payload.startswith(header):
+            continue
+        if len(payload) < 9:
+            break
+        final_flag = payload[8]
+        chunk = payload[9:].rstrip(b"\x00").decode("ascii", errors="replace")
+        if chunk:
+            chunks.append(chunk)
+        if final_flag:
+            break
+    return "".join(chunks)
 
 
 # --- Probe ---
@@ -189,21 +239,17 @@ def exec_command(
 
 def probe(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
     """Read-only probe. Returns dict with all results."""
-    dev, iface, ep_out, ep_in = find_device(vid, pid)
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
-    try:
-        usb.util.claim_interface(dev, iface)
-        results = {
-            "build_id": read_build_id(ep_out, ep_in),
-            "product": read_product_model(ep_out, ep_in),
-            "reset_status": read_reset_status(ep_out, ep_in),
-            "factory_cmdline": read_factory_cmdline(ep_out, ep_in),
-        }
-        results["all_ok"] = all(r["ok"] for r in results.values())
-        return results
-    finally:
-        usb.util.dispose_resources(dev)
+    results = {
+        "build_id": read_build_id(ep_out, ep_in),
+        "product": read_product_model(ep_out, ep_in),
+        "reset_status": read_reset_status(ep_out, ep_in),
+        "factory_cmdline": read_factory_cmdline(ep_out, ep_in),
+    }
+    results["all_ok"] = all(r["ok"] for r in results.values())
+    return results
 
 
 # --- SELinux ---
@@ -211,19 +257,15 @@ def probe(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
 
 def set_factory_flag(flags: int, vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> bool:
     """Write factory mode flag to DNAND ID 9."""
-    dev, iface, ep_out, ep_in = find_device(vid, pid)
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
-    try:
-        usb.util.claim_interface(dev, iface)
-        pkt = _header(CMD_WRITE_FACTORY_MODE) + struct.pack("<BBBB", flags, 0, 0, 0)
-        payload = _transact(ep_out, ep_in, pkt, timeout=2.0)
-        if payload and len(payload) >= 6:
-            status = struct.unpack_from("<H", payload, 4)[0]
-            return status == 0
-        return False
-    finally:
-        usb.util.dispose_resources(dev)
+    pkt = _header(CMD_WRITE_FACTORY_MODE) + struct.pack("<BBBB", flags, 0, 0, 0)
+    payload = _transact(ep_out, ep_in, pkt, timeout=2.0)
+    if payload and len(payload) >= 6:
+        status = struct.unpack_from("<H", payload, 4)[0]
+        return status == 0
+    return False
 
 
 # --- File pull ---
@@ -238,38 +280,34 @@ def pull_file(
     progress_cb=None,
 ) -> bool:
     """Pull a file via diag shell using chunked base64. progress_cb(offset, total) called per chunk."""
-    dev, iface, ep_out, ep_in = find_device(vid, pid)
+    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
+
+    # Get file size
+    size_out = _exec_shell(ep_out, ep_in, f"wc -c < {remote_path} 2>/dev/null")
+    cleaned = "".join(c for c in size_out if c.isdigit() or c in (" ", "\n"))
     try:
-        usb.util.claim_interface(dev, iface)
+        file_size = int(cleaned.strip().split()[0])
+    except (ValueError, IndexError):
+        raise RuntimeError(f"Cannot determine file size: {size_out!r}")
 
-        # Get file size
-        size_out = _exec_shell(ep_out, ep_in, f"wc -c < {remote_path} 2>/dev/null")
-        cleaned = "".join(c for c in size_out if c.isdigit() or c in (" ", "\n"))
-        try:
-            file_size = int(cleaned.strip().split()[0])
-        except (ValueError, IndexError):
-            raise RuntimeError(f"Cannot determine file size: {size_out!r}")
-
-        with open(local_path, "wb") as f:
-            offset = 0
-            while offset < file_size:
-                to_read = min(chunk_size, file_size - offset)
-                cmd = f"dd if={remote_path} bs=1 skip={offset} count={to_read} 2>/dev/null | base64 -w 0"
-                b64 = _exec_shell(ep_out, ep_in, cmd, timeout_s=15.0).strip()
-                if not b64:
-                    raise RuntimeError(f"Empty response at offset {offset}")
-                chunk = base64.b64decode(b64)
-                f.write(chunk)
-                offset += len(chunk)
-                if progress_cb:
-                    progress_cb(offset, file_size)
-                if len(chunk) < to_read:
-                    break
-        return True
-    finally:
-        usb.util.dispose_resources(dev)
+    with open(local_path, "wb") as f:
+        offset = 0
+        while offset < file_size:
+            to_read = min(chunk_size, file_size - offset)
+            cmd = f"dd if={remote_path} bs=1 skip={offset} count={to_read} 2>/dev/null | base64 -w 0"
+            b64 = _exec_shell(ep_out, ep_in, cmd, timeout_s=15.0).strip()
+            if not b64:
+                raise RuntimeError(f"Empty response at offset {offset}")
+            chunk = base64.b64decode(b64)
+            f.write(chunk)
+            offset += len(chunk)
+            if progress_cb:
+                progress_cb(offset, file_size)
+            if len(chunk) < to_read:
+                break
+    return True
 
 
 def _exec_shell(ep_out, ep_in, cmd: str, timeout_s: float = 10.0) -> str:

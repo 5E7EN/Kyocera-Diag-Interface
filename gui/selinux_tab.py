@@ -218,7 +218,8 @@ class SELinuxTab(ttk.Frame):
                 ok = diag.set_factory_flag(flags)
                 self.after(0, lambda: self._on_write_done(ok, label))
             except ConnectionError as e:
-                self.after(0, lambda: self._on_write_error(str(e)))
+                msg = str(e)
+                self.after(0, lambda: self._on_write_error(msg))
 
         threading.Thread(target=_write, daemon=True).start()
 

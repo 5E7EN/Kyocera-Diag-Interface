@@ -1,8 +1,8 @@
 """Device detection, mode switching, and ADB interaction."""
 
 import os
+import sys
 import json
-import fcntl
 import ctypes
 import subprocess
 import logging
@@ -15,9 +15,6 @@ from . import diag
 
 logger = logging.getLogger("kdiag.device")
 
-SG_IO = 0x2285
-SG_DXFER_FROM_DEV = -3
-
 
 class DeviceMode(Enum):
     DISCONNECTED = "disconnected"
@@ -27,31 +24,337 @@ class DeviceMode(Enum):
     DIAG = "diag"
 
 
-class SgIoHdr(ctypes.Structure):
-    _fields_ = [
-        ("interface_id", ctypes.c_int),
-        ("dxfer_direction", ctypes.c_int),
-        ("cmd_len", ctypes.c_ubyte),
-        ("mx_sb_len", ctypes.c_ubyte),
-        ("iovec_count", ctypes.c_ushort),
-        ("dxfer_len", ctypes.c_uint),
-        ("dxferp", ctypes.c_void_p),
-        ("cmdp", ctypes.c_void_p),
-        ("sbp", ctypes.c_void_p),
-        ("timeout", ctypes.c_uint),
-        ("flags", ctypes.c_uint),
-        ("pack_id", ctypes.c_int),
-        ("usr_ptr", ctypes.c_void_p),
-        ("status", ctypes.c_ubyte),
-        ("masked_status", ctypes.c_ubyte),
-        ("msg_status", ctypes.c_ubyte),
-        ("sb_len_wr", ctypes.c_ubyte),
-        ("host_status", ctypes.c_ushort),
-        ("driver_status", ctypes.c_ushort),
-        ("resid", ctypes.c_int),
-        ("duration", ctypes.c_uint),
-        ("info", ctypes.c_uint),
+# ---------------------------------------------------------------------------
+# Platform-specific SCSI passthrough
+# ---------------------------------------------------------------------------
+
+if sys.platform == "win32":
+    import ctypes.wintypes
+
+    # Set proper 64-bit return/arg types for kernel32 functions
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.CreateFileW.restype = ctypes.wintypes.HANDLE
+    _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+    _kernel32.DeviceIoControl.argtypes = [
+        ctypes.wintypes.HANDLE,
+        ctypes.wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.wintypes.DWORD,
+        ctypes.POINTER(ctypes.wintypes.DWORD),
+        ctypes.c_void_p,
     ]
+    _kernel32.DeviceIoControl.restype = ctypes.wintypes.BOOL
+    _kernel32.GetDriveTypeW.restype = ctypes.c_uint
+
+    # IOCTL_SCSI_PASS_THROUGH — non-direct variant where data buffer is inline
+    IOCTL_SCSI_PASS_THROUGH = 0x4D004
+    SCSI_IOCTL_DATA_IN = 1  # Device -> Host
+
+    class ScsiPassThrough(ctypes.Structure):
+        """SCSI_PASS_THROUGH structure (non-direct, uses DataBufferOffset)."""
+
+        _fields_ = [
+            ("Length", ctypes.c_ushort),
+            ("ScsiStatus", ctypes.c_ubyte),
+            ("PathId", ctypes.c_ubyte),
+            ("TargetId", ctypes.c_ubyte),
+            ("Lun", ctypes.c_ubyte),
+            ("CdbLength", ctypes.c_ubyte),
+            ("SenseInfoLength", ctypes.c_ubyte),
+            ("DataIn", ctypes.c_ubyte),
+            ("DataTransferLength", ctypes.c_ulong),
+            ("TimeOutValue", ctypes.c_ulong),
+            ("DataBufferOffset", ctypes.c_size_t),  # ULONG_PTR
+            ("SenseInfoOffset", ctypes.c_ulong),
+            ("Cdb", ctypes.c_ubyte * 16),
+        ]
+
+    class ScsiPassThroughWithBuffers(ctypes.Structure):
+        """SCSI_PASS_THROUGH + inline sense and data buffers."""
+
+        _fields_ = [
+            ("spt", ScsiPassThrough),
+            ("sense", ctypes.c_ubyte * 32),
+            ("data", ctypes.c_ubyte * 48),
+        ]
+
+    def _get_cdrom_device(
+        vendor: str = "KYOCERA", model: str = "E4810-MSS"
+    ) -> Optional[str]:
+        r"""Find the Kyocera CDROM using \\.\CdRomN device path on Windows.
+
+        Uses CdRomN paths instead of drive letters to bypass the volume manager,
+        which blocks SCSI passthrough when no medium is present.
+        """
+        try:
+            # PowerShell: get CDROM device index, matching by name
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_CDROMDrive | Select-Object -Property Id,Name,MediaLoaded | ConvertTo-Json -Compress",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            data = json.loads(result.stdout)
+            # Normalize to list (single result comes back as a dict)
+            if isinstance(data, dict):
+                data = [data]
+            for drive in data:
+                name = (drive.get("Name") or "").upper()
+                drive_id = drive.get("Id") or ""
+                if "KYOCERA" in name or "E4810" in name or "E4610" in name:
+                    # Id is a drive letter like "E:" — make it a device path
+                    if not drive_id.startswith("\\\\"):
+                        drive_id = f"\\\\.\\{drive_id}"
+                    logger.info(f"Found Kyocera CDROM: {drive_id} ({name})")
+                    return drive_id
+        except (
+            subprocess.CalledProcessError,
+            json.JSONDecodeError,
+            FileNotFoundError,
+        ) as e:
+            logger.debug(f"PowerShell CDROM detection failed: {e}")
+
+        # Fallback: probe \\.\CdRom0 through \\.\CdRom9
+        OPEN_EXISTING = 3
+        GENERIC_READ = 0x80000000
+        FILE_SHARE_READ = 0x01
+        INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
+        for i in range(10):
+            path = f"\\\\.\\CdRom{i}"
+            handle = _kernel32.CreateFileW(
+                path,
+                GENERIC_READ,
+                FILE_SHARE_READ,
+                None,
+                OPEN_EXISTING,
+                0,
+                None,
+            )
+            if handle != INVALID_HANDLE_VALUE:
+                _kernel32.CloseHandle(handle)
+                logger.info(f"Fallback: using first available CDROM: {path}")
+                return path
+        return None
+
+    # Volume IOCTLs needed to release Windows grip on the CDROM :-)
+    FSCTL_LOCK_VOLUME = 0x00090018
+    FSCTL_DISMOUNT_VOLUME = 0x00090020
+    FSCTL_UNLOCK_VOLUME = 0x0009001C
+
+    def send_diag_scsi(dev_path: str, mode: int = 0x02, timeout: int = 5) -> bool:
+        """Send SCSI vendor command via IOCTL_SCSI_PASS_THROUGH on Windows."""
+        cdb = bytearray(10)
+        cdb[0] = 0xF0
+        cdb[2:6] = b"KCDT"
+        cdb[8] = mode
+
+        sptwb = ScsiPassThroughWithBuffers()
+        ctypes.memset(ctypes.byref(sptwb), 0, ctypes.sizeof(sptwb))
+        spt = sptwb.spt
+        spt.Length = ctypes.sizeof(ScsiPassThrough)
+        spt.CdbLength = len(cdb)
+        spt.SenseInfoLength = 32
+        spt.DataIn = SCSI_IOCTL_DATA_IN
+        spt.DataTransferLength = 48
+        spt.TimeOutValue = timeout
+        spt.DataBufferOffset = ScsiPassThroughWithBuffers.data.offset
+        spt.SenseInfoOffset = ScsiPassThroughWithBuffers.sense.offset
+
+        for i, b in enumerate(cdb):
+            spt.Cdb[i] = b
+
+        GENERIC_READ = 0x80000000
+        GENERIC_WRITE = 0x40000000
+        FILE_SHARE_READ = 0x01
+        FILE_SHARE_WRITE = 0x02
+        OPEN_EXISTING = 3
+        INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
+
+        handle = _kernel32.CreateFileW(
+            dev_path,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            0,
+            None,
+        )
+        if handle == INVALID_HANDLE_VALUE:
+            err = ctypes.GetLastError()
+            logger.error(f"CreateFileW failed for {dev_path}: error {err}")
+            return False
+
+        bytes_returned = ctypes.wintypes.DWORD(0)
+
+        # Lock and dismount the volume so Windows releases its hold on the CDROM
+        _kernel32.DeviceIoControl(
+            handle,
+            FSCTL_LOCK_VOLUME,
+            None,
+            0,
+            None,
+            0,
+            ctypes.byref(bytes_returned),
+            None,
+        )
+        _kernel32.DeviceIoControl(
+            handle,
+            FSCTL_DISMOUNT_VOLUME,
+            None,
+            0,
+            None,
+            0,
+            ctypes.byref(bytes_returned),
+            None,
+        )
+
+        buf_size = ctypes.sizeof(sptwb)
+        ok = _kernel32.DeviceIoControl(
+            handle,
+            IOCTL_SCSI_PASS_THROUGH,
+            ctypes.byref(sptwb),
+            buf_size,
+            ctypes.byref(sptwb),
+            buf_size,
+            ctypes.byref(bytes_returned),
+            None,
+        )
+        err = ctypes.GetLastError()
+
+        # Unlock and close
+        _kernel32.DeviceIoControl(
+            handle,
+            FSCTL_UNLOCK_VOLUME,
+            None,
+            0,
+            None,
+            0,
+            ctypes.byref(bytes_returned),
+            None,
+        )
+        _kernel32.CloseHandle(handle)
+
+        if not ok:
+            logger.error(f"DeviceIoControl SCSI_PASS_THROUGH failed: error {err}")
+            return False
+
+        if spt.ScsiStatus != 0:
+            sense_key = sptwb.sense[2] & 0x0F if sptwb.sense[0] != 0 else 0
+            asc = sptwb.sense[12] if len(sptwb.sense) > 12 else 0
+            ascq = sptwb.sense[13] if len(sptwb.sense) > 13 else 0
+            logger.error(
+                f"SCSI command failed: ScsiStatus={spt.ScsiStatus}, "
+                f"SenseKey={sense_key}, ASC/ASCQ={asc:02X}h/{ascq:02X}h"
+            )
+            return False
+
+        return True
+
+else:
+    # Linux / POSIX
+    import fcntl
+
+    SG_IO = 0x2285
+    SG_DXFER_FROM_DEV = -3
+
+    class SgIoHdr(ctypes.Structure):
+        _fields_ = [
+            ("interface_id", ctypes.c_int),
+            ("dxfer_direction", ctypes.c_int),
+            ("cmd_len", ctypes.c_ubyte),
+            ("mx_sb_len", ctypes.c_ubyte),
+            ("iovec_count", ctypes.c_ushort),
+            ("dxfer_len", ctypes.c_uint),
+            ("dxferp", ctypes.c_void_p),
+            ("cmdp", ctypes.c_void_p),
+            ("sbp", ctypes.c_void_p),
+            ("timeout", ctypes.c_uint),
+            ("flags", ctypes.c_uint),
+            ("pack_id", ctypes.c_int),
+            ("usr_ptr", ctypes.c_void_p),
+            ("status", ctypes.c_ubyte),
+            ("masked_status", ctypes.c_ubyte),
+            ("msg_status", ctypes.c_ubyte),
+            ("sb_len_wr", ctypes.c_ubyte),
+            ("host_status", ctypes.c_ushort),
+            ("driver_status", ctypes.c_ushort),
+            ("resid", ctypes.c_int),
+            ("duration", ctypes.c_uint),
+            ("info", ctypes.c_uint),
+        ]
+
+    def _get_cdrom_device(
+        vendor: str = "KYOCERA", model: str = "E4810-MSS"
+    ) -> Optional[str]:
+        """Find the SCSI generic device for the Kyocera CDROM on Linux."""
+        try:
+            result = subprocess.run(
+                ["lsblk", "-J", "-o", "NAME,TYPE,VENDOR,MODEL,SERIAL"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            data = json.loads(result.stdout)
+        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
+            return None
+
+        for device in data.get("blockdevices", []):
+            if device.get("type") == "rom":
+                dev_vendor = (device.get("vendor") or "").strip()
+                if dev_vendor == vendor and device.get("model") == model:
+                    return "/dev/" + device.get("name")
+        return None
+
+    def send_diag_scsi(dev_path: str, mode: int = 0x02, timeout: int = 5000) -> bool:
+        """Send SCSI vendor command to switch CDROM to diag mode on Linux."""
+        cdb = bytearray(10)
+        cdb[0] = 0xF0
+        cdb[2:6] = b"KCDT"
+        cdb[8] = mode
+
+        cdb_buffer = ctypes.create_string_buffer(bytes(cdb))
+        data_buffer = ctypes.create_string_buffer(48)
+        sense_buffer = ctypes.create_string_buffer(32)
+
+        sg_io = SgIoHdr()
+        sg_io.interface_id = ord("S")
+        sg_io.dxfer_direction = SG_DXFER_FROM_DEV
+        sg_io.cmd_len = len(cdb)
+        sg_io.mx_sb_len = 32
+        sg_io.dxfer_len = 48
+        sg_io.dxferp = ctypes.cast(data_buffer, ctypes.c_void_p).value
+        sg_io.cmdp = ctypes.cast(cdb_buffer, ctypes.c_void_p).value
+        sg_io.sbp = ctypes.cast(sense_buffer, ctypes.c_void_p).value
+        sg_io.timeout = timeout
+
+        fd = None
+        try:
+            fd = os.open(dev_path, os.O_RDWR | os.O_NONBLOCK)
+            fcntl.ioctl(fd, SG_IO, sg_io)
+        except OSError as e:
+            logger.error(f"SCSI ioctl failed: {e}")
+            return False
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+        return (
+            sg_io.status == 0
+            and sg_io.host_status == 0
+            and (sg_io.driver_status & 0x07) == 0
+        )
+
+
+# ---------------------------------------------------------------------------
+# Platform-independent functions
+# ---------------------------------------------------------------------------
 
 
 def detect_mode() -> DeviceMode:
@@ -139,6 +442,8 @@ def switch_to_adb() -> tuple:
     """Switch device back to regular ADB/charge mode via adb shell. Returns (success, message)."""
     import time
 
+    diag.close_connection()
+
     try:
         subprocess.Popen(
             ["adb", "shell", "svc", "usb", "setFunctions"],
@@ -170,69 +475,6 @@ def switch_to_cdrom() -> bool:
         return r.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
-
-
-def _get_cdrom_device(
-    vendor: str = "KYOCERA", model: str = "E4810-MSS"
-) -> Optional[str]:
-    """Find the SCSI generic device for the Kyocera CDROM."""
-    try:
-        result = subprocess.run(
-            ["lsblk", "-J", "-o", "NAME,TYPE,VENDOR,MODEL,SERIAL"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        data = json.loads(result.stdout)
-    except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
-        return None
-
-    for device in data.get("blockdevices", []):
-        if device.get("type") == "rom":
-            dev_vendor = (device.get("vendor") or "").strip()
-            if dev_vendor == vendor and device.get("model") == model:
-                return "/dev/" + device.get("name")
-    return None
-
-
-def send_diag_scsi(dev_path: str, mode: int = 0x02, timeout: int = 5000) -> bool:
-    """Send SCSI vendor command to switch CDROM to diag mode."""
-    cdb = bytearray(10)
-    cdb[0] = 0xF0
-    cdb[2:6] = b"KCDT"
-    cdb[8] = mode
-
-    cdb_buffer = ctypes.create_string_buffer(bytes(cdb))
-    data_buffer = ctypes.create_string_buffer(48)
-    sense_buffer = ctypes.create_string_buffer(32)
-
-    sg_io = SgIoHdr()
-    sg_io.interface_id = ord("S")
-    sg_io.dxfer_direction = SG_DXFER_FROM_DEV
-    sg_io.cmd_len = len(cdb)
-    sg_io.mx_sb_len = 32
-    sg_io.dxfer_len = 48
-    sg_io.dxferp = ctypes.cast(data_buffer, ctypes.c_void_p).value
-    sg_io.cmdp = ctypes.cast(cdb_buffer, ctypes.c_void_p).value
-    sg_io.sbp = ctypes.cast(sense_buffer, ctypes.c_void_p).value
-    sg_io.timeout = timeout
-
-    fd = None
-    try:
-        fd = os.open(dev_path, os.O_RDWR | os.O_NONBLOCK)
-        fcntl.ioctl(fd, SG_IO, sg_io)
-    except OSError as e:
-        logger.error(f"SCSI ioctl failed: {e}")
-        return False
-    finally:
-        if fd is not None:
-            os.close(fd)
-
-    return (
-        sg_io.status == 0
-        and sg_io.host_status == 0
-        and (sg_io.driver_status & 0x07) == 0
-    )
 
 
 def switch_to_diag() -> tuple[bool, str]:

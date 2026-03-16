@@ -217,7 +217,8 @@ class ShellTab(ttk.Frame):
                     output = diag.exec_command(full_cmd)
                 self.after(0, lambda: self._show_output(output))
             except Exception as e:
-                self.after(0, lambda: self._show_output(f"Error: {e}", is_error=True))
+                msg = f"Error: {e}"
+                self.after(0, lambda: self._show_output(msg, is_error=True))
 
         threading.Thread(target=_exec, daemon=True).start()
 
