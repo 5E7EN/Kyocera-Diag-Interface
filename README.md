@@ -5,15 +5,13 @@ GUI tool for interacting with Kyocera devices via ADB and diag mode.
 Tested on E4610 and E4810. Other Kyocera devices with the same protocol may work but are untested.  
 Also tested on an old C7642 device running Android 5.1.1 - which shares the diag protocol. Switching to diag mode is done via hidden dailer menu (##DIAG#) after MSL code auth, though.
 
+https://github.com/user-attachments/assets/b4ae6ded-5514-4746-a40e-2a45283b3960
+
 ### ⚠️ Disclaimer:
 
 ### I take no responsibility for anything that happens to your device as a result of using this tool.
 
 ### Writing to /system or verified partitions on a locked bootloader (via Shell tab) will brick your device!
-
-## Demo
-
-https://github.com/user-attachments/assets/b4ae6ded-5514-4746-a40e-2a45283b3960
 
 ## Features
 
