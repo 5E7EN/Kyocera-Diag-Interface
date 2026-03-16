@@ -7,6 +7,8 @@ Also tested on an old C7642 device running Android 5.1.1 - which shares the diag
 
 https://github.com/user-attachments/assets/b4ae6ded-5514-4746-a40e-2a45283b3960
 
+---
+
 ### ⚠️ Disclaimer:
 
 ### I take no responsibility for anything that happens to your device as a result of using this tool.
