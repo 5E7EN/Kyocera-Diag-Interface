@@ -87,9 +87,17 @@ sudo python3 main.py
 
 ## How it works
 
-This tool interacts with the `/vendor/bin/kdiag_common` binary on device.  
-The binary exposes quite a lot of diagnostics-related methods that grant near full control of the device.  
-Besides the native functions, much is also possible once permissive root access is enabled.  
+This tool interacts with the diag binaries found on the device, mostly in `/vendor/bin/*_diag`.  
+Each binary self-registers its commands with QCom's dispatch table (via `diagpkt_tbl_reg()` exported from `libdiag.so`).  
+As of right now, only the `kdiag_common` commands are implemented in this tool.  
+The binaries expose an enormous amount of diagnostics-related commands that grant near full control of the device, including relatively sensitive operations.
+
+Capabilities include:
+
+- Hardware-layer commands: I2C, display, keys, battery, audio, bluetooth, camera, sensors, LEDs, etc.
+- Software-layer commands: filesystem, DNAND, checksums, handset control, logs, etc.
+
+Besides the native functions, much is currently possible once permissive root access is enabled.  
 Proper writeup coming soon™.
 
 ## Credits
