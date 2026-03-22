@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/b4ae6ded-5514-4746-a40e-2a45283b3960
 ### Windows (EXPERIMENTAL)
 
 1. Install [Python 3.10+](https://www.python.org/downloads/) (ensure "Add to PATH" is checked during install)
-
+    - Run `pip install -r requirements.txt`
 2. Install [Minimal ADB and Fastboot](https://androiddatahost.com/wp-content/uploads/Minimal_ADB_Fastboot_v1.4.3.zip) and add to your PATH
 
 3. Install [Zadig](https://zadig.akeo.ie/) (needed for USB driver setup - see step 6)
