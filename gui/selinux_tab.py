@@ -79,22 +79,6 @@ class SELinuxTab(ttk.Frame):
         )
         self.restore_btn.pack(side="left", padx=(0, 8))
 
-        self.fastboot_btn = ttk.Button(
-            btn_row,
-            text="Reboot to Fastboot (?)",
-            state="disabled",
-            command=self._reboot_to_fastboot,
-        )
-        self.fastboot_btn.pack(side="left")
-        self._fastboot_tooltip = styles.Tooltip(
-            self.fastboot_btn,
-            "Requires SELinux to be permissive.\n\n"
-            "To unlock:\n"
-            "1. Click 'Set Permissive' (in diag mode)\n"
-            "2. Reboot the device\n"
-            "3. Re-enter diag mode"
-        )
-
         # Log output
         log_frame = ttk.LabelFrame(self, text=" Log ", padding=8)
         log_frame.pack(fill="both", expand=True, padx=16, pady=8)
@@ -174,14 +158,6 @@ class SELinuxTab(ttk.Frame):
             )
             self._log(f"kcpermissive flag: NOT set", "warn")
 
-        runtime_permissive = getenforce.lower() == "permissive"
-        if runtime_permissive:
-            self.fastboot_btn.configure(state="normal", text="Reboot to Fastboot")
-            self._fastboot_tooltip._widget.unbind("<Enter>")
-            self._fastboot_tooltip._widget.unbind("<Leave>")
-        else:
-            self.fastboot_btn.configure(state="disabled", text="Reboot to Fastboot (?)")
-
         detail_parts = []
         if getenforce:
             detail_parts.append(f"Runtime: {getenforce}")
@@ -257,40 +233,3 @@ class SELinuxTab(ttk.Frame):
         self._log(f"Error: {msg}", "err")
         self._set_status("SELinux write failed")
 
-    def _reboot_to_fastboot(self):
-        if not messagebox.askyesno(
-            "Reboot to Fastboot",
-            "This will reboot your device into fastboot mode.\n\n"
-            "To boot back into normal mode once finished, run:\n"
-            "  fastboot erase chkcode\n"
-            "  fastboot reboot\n\n"
-            "Continue?",
-        ):
-            return
-        self.fastboot_btn.configure(state="disabled")
-        self._set_status("Rebooting to fastboot...")
-
-        def _do_fastboot():
-            ok, msg = device.reboot_to_fastboot()
-            self.after(0, lambda: self._on_fastboot_done(ok, msg))
-
-        threading.Thread(target=_do_fastboot, daemon=True).start()
-
-    def _on_fastboot_done(self, ok, msg):
-        self.fastboot_btn.configure(state="normal" if ok else "disabled")
-        color = styles.SUCCESS if ok else styles.ERROR
-        self._set_status("Fastboot reboot sent" if ok else "Fastboot reboot failed")
-        self._log(msg, "ok" if ok else "err")
-        if ok:
-            self._log("", None)
-            self._log("⚠  The device will be STUCK in fastboot until you run:", "warn")
-            self._log("!!!  fastboot erase chkcode", "warn")
-            self._log("!!!  fastboot reboot", "warn")
-            self._log("   You will NOT be able to reboot normally without these commands.", "warn")
-            messagebox.showinfo(
-                "Fastboot Reboot",
-                "Device is rebooting into fastboot mode.\n\n"
-                "You will NOT be able to boot normally until you run:\n"
-                "  fastboot erase chkcode\n"
-                "  fastboot reboot",
-            )

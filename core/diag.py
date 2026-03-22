@@ -203,6 +203,16 @@ def close_connection():
     _close_stale()
 
 
+def ensure_daemons() -> None:
+    """Activate all other diag class daemons.
+
+    A bunch of diag commands (like BlockDevIO) need kc_diag class to be
+    active which only happens once this property is set.
+    """
+    exec_command("setprop vendor.kc.diag.status start")
+    time.sleep(2)
+
+
 def reboot() -> bool:
     """Reboot the device."""
     dev, _, ep_out, _ = _get_connection()

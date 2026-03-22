@@ -92,6 +92,18 @@ class DeviceTab(ttk.Frame):
             command=self._reboot_device,
         )
 
+        self.fastboot_sep = tk.Frame(btn_frame, width=1, bg=styles.BORDER)
+
+        self.fastboot_btn = ttk.Button(
+            btn_frame,
+            text="Reboot to Fastboot",
+            state="disabled",
+            command=self._reboot_to_fastboot,
+        )
+        self._fastboot_tooltip = styles.Tooltip(
+            self.fastboot_btn, "Enable diag mode first"
+        )
+
         # -- Probe section --
         probe_frame = ttk.LabelFrame(self, text=" Diag Status", padding=16)
         probe_frame.pack(fill="both", expand=True, padx=16, pady=8)
@@ -188,6 +200,20 @@ class DeviceTab(ttk.Frame):
             self.mode_sep.pack_forget()
             self.reboot_btn.pack_forget()
 
+        # Reboot to Fastboot - always shown, enabled only in diag mode
+        if mode in (device.DeviceMode.ADB, device.DeviceMode.DIAG):
+            self.fastboot_btn.pack(after=self.reboot_btn, side="left")
+        else:
+            self.fastboot_btn.pack(side="left")
+        if mode == device.DeviceMode.DIAG:
+            self.fastboot_btn.configure(state="normal")
+            self.fastboot_btn.unbind("<Enter>")
+            self.fastboot_btn.unbind("<Leave>")
+        else:
+            self.fastboot_btn.configure(state="disabled")
+            self.fastboot_btn.bind("<Enter>", self._fastboot_tooltip._show)
+            self.fastboot_btn.bind("<Leave>", self._fastboot_tooltip._hide)
+
         # Enable/disable probe button, auto-probe if entering diag mode
         self.probe_btn.configure(
             state="normal" if mode == device.DeviceMode.DIAG else "disabled"
@@ -234,6 +260,49 @@ class DeviceTab(ttk.Frame):
                 self.after(0, lambda: self.reboot_btn.configure(state="normal"))
 
         threading.Thread(target=_do_reboot, daemon=True).start()
+
+    def _reboot_to_fastboot(self):
+        if not messagebox.askyesno(
+            "Reboot to Fastboot",
+            "This will reboot your device into fastboot mode.\n\n"
+            "To boot back into normal mode once finished, run:\n"
+            "  fastboot erase chkcode\n"
+            "  fastboot reboot\n\n"
+            "Continue?",
+        ):
+            return
+        self.fastboot_btn.configure(state="disabled")
+        self._set_status("Rebooting to fastboot...")
+
+        def _do_fastboot():
+            ok, msg = device.reboot_to_fastboot()
+            self.after(0, lambda: self._on_fastboot_done(ok, msg))
+
+        threading.Thread(target=_do_fastboot, daemon=True).start()
+
+    def _on_fastboot_done(self, ok, msg):
+        color = styles.SUCCESS if ok else styles.ERROR
+        self._set_status("Fastboot reboot sent" if ok else "Fastboot reboot failed")
+        self.mode_detail.configure(text=msg, foreground=color)
+        if ok:
+            self._update_mode(device.DeviceMode.DISCONNECTED)
+            warning = (
+                "[!] Device will boot to fastboot mode.\n"
+                "!!! You will NOT be able to reboot to normal mode until you run:\n"
+                "!!!   fastboot erase chkcode\n"
+                "!!!   fastboot reboot"
+            )
+            self.probe_text.configure(state="normal")
+            self.probe_text.delete("1.0", "end")
+            self.probe_text.tag_configure(
+                "warning",
+                foreground="red",
+                font=("TkDefaultFont", 14, "bold"),
+            )
+            self.probe_text.insert("end", warning + "\n", "warning")
+            self.probe_text.configure(state="disabled")
+        else:
+            self.fastboot_btn.configure(state="normal")
 
     def _on_switch_done(self, ok, msg, mode, model):
         self._update_mode(mode, model)

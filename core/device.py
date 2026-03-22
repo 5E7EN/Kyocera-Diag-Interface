@@ -12,7 +12,7 @@ from typing import Optional
 
 import usb.core
 
-from . import diag
+from . import diag, blockdev
 
 logger = logging.getLogger("kdiag.device")
 
@@ -25,10 +25,7 @@ class DeviceMode(Enum):
     DIAG = "diag"
 
 
-# ---------------------------------------------------------------------------
 # Platform-specific SCSI passthrough
-# ---------------------------------------------------------------------------
-
 if sys.platform == "win32":
     import ctypes.wintypes
 
@@ -353,11 +350,7 @@ else:
         )
 
 
-# ---------------------------------------------------------------------------
 # Platform-independent functions
-# ---------------------------------------------------------------------------
-
-
 def detect_mode() -> DeviceMode:
     """Detect current device mode via USB VID:PID and ADB."""
     # Check for diag mode
@@ -436,12 +429,6 @@ def adb_shell(cmd: str) -> str:
 
 def reboot(mode: "DeviceMode | None" = None) -> None:
     if mode == DeviceMode.DIAG:
-        # Activate other diag daemons
-        # Gotta do this since kc_diag class only launches if prop is set
-        # (see /vendor/etc/init/init.kdmc.rc)
-        diag.exec_command("setprop vendor.kc.diag.status start")
-        time.sleep(3)
-        # Reboot
         diag.reboot()
     else:
         # Reboot via ADB
@@ -449,43 +436,32 @@ def reboot(mode: "DeviceMode | None" = None) -> None:
 
 
 # Fastboot reboot constants
+# TODO: Put these somewhere else?
 _CHKCODE_PARTITION = "/dev/block/bootdevice/by-name/chkcode"
 _CHKCODE_MAGIC = b"LOOTBFCK" + b"\xff" * 8
 
 
 def reboot_to_fastboot() -> tuple:
-    """Write chkcode magic and reboot."""
-    printf_arg = "".join("\\%03o" % b for b in _CHKCODE_MAGIC)
-    part = _CHKCODE_PARTITION
-
+    """Write chkcode magic via BlockDevIO and reboot."""
     try:
-        # Zero the partition
-        out = diag.exec_command(
-            f"dd if=/dev/zero of={part} bs=512 count=1024 2>&1 && sync",
-            timeout_s=30.0,
-        )
+        # Ensure all diag class daemons are active
+        diag.ensure_daemons()
 
-        # Write magic
-        out = diag.exec_command(
-            f"printf '{printf_arg}' | dd of={part} bs=16 count=1 2>&1 && sync",
-        )
+        # Get connection for BlockDevIO transactions
+        dev, _, ep_out, ep_in = diag._get_connection()
+        if not dev:
+            return False, "Diag device not found"
 
-        # Verify looks good
-        out = diag.exec_command(
-            f"dd if={part} bs=16 count=1 2>/dev/null | od -t x1 -A none",
-        )
-        result = out.strip().replace(" ", "")
-        expected = "".join("%02x" % b for b in _CHKCODE_MAGIC)
+        ok = blockdev.write_partition(ep_out, ep_in, _CHKCODE_PARTITION, _CHKCODE_MAGIC)
 
-        if result != expected:
-            return False, "Verification failed. Magic did not work."
+        if not ok:
+            return False, "Failed to write"
 
         # Reboot
         try:
-            diag.exec_command("/system/bin/reboot")
+            diag.reboot()
         except Exception:
-            # Connection drop is expected, ignore error
-            pass
+            pass  # Connection drop after reboot command is expected
 
         return True, (
             "Device will boot into fastboot mode.\n"
@@ -501,8 +477,6 @@ def reboot_to_fastboot() -> tuple:
 
 def switch_to_adb() -> tuple:
     """Switch device back to regular ADB/charge mode via adb shell. Returns (success, message)."""
-    import time
-
     diag.close_connection()
 
     try:
@@ -553,8 +527,6 @@ def switch_to_diag() -> tuple[bool, str]:
         if not switch_to_cdrom():
             return False, "Failed to switch to CDROM mode via ADB"
         # Wait for CDROM device to appear
-        import time
-
         for _ in range(20):
             time.sleep(0.5)
             if detect_mode() == DeviceMode.CDROM:
@@ -571,8 +543,6 @@ def switch_to_diag() -> tuple[bool, str]:
         return False, "SCSI diag command failed"
 
     # Wait for diag device
-    import time
-
     for _ in range(20):
         time.sleep(0.5)
         if detect_mode() == DeviceMode.DIAG:
