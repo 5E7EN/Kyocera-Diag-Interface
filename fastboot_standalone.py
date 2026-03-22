@@ -54,17 +54,19 @@ HDLC_FLAG = 0x7E
 HDLC_ESC = 0x7D
 HDLC_XOR = 0x20
 
+VERSION = "1.0.0"
+
 BANNER = r"""
 BS"D
  _  __                             ___         _   _                _
 | |/ /  _  _  ___  __ ___  _ _ __ | __| __ _ _| |_| |__  ___  ___ | |_
 | ' <  | || |/ _ \/ _/ -_)| '_/ _|| _| / _` (_-<  _| '_ \/ _ \/ _ \|  _|
 |_|\_\  \_, |\___/\__\___||_| \__||_|  \__,_/__/\__|_.__/\___/\___/ \__|
-        |__/
+        |__/                                                   v{version}
 
   Credits: @5E7EN/BenTorah, @LeoBuskin
   https://github.com/5E7EN/Kyocera-Diag-Interface
-"""
+""".format(version=VERSION)
 
 
 # ============================================================
