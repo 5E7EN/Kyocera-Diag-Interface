@@ -30,6 +30,7 @@ CMD_SHELL_OUTPUT = 0x2081
 CMD_READ_RESET_STATUS = 0x2061
 CMD_READ_FACTORY_MODE = 0x20C1
 CMD_WRITE_FACTORY_MODE = 0x20C0
+CMD_REBOOT = 0x2012
 
 # Factory mode flags
 FACTORY_PERMISSIVE = 0x04
@@ -202,11 +203,26 @@ def close_connection():
     _close_stale()
 
 
+def reboot() -> bool:
+    """Reboot the device."""
+    dev, _, ep_out, _ = _get_connection()
+    if not dev:
+        raise ConnectionError("Diag device not found")
+    try:
+        # Fire and forget - device reboots before it can respond
+        ep_out.write(hdlc.encode(_header(CMD_REBOOT)))
+        return True
+    except Exception:
+        return True  # USB error after write likely means device already rebooting
+    finally:
+        usb.util.dispose_resources(dev)
+
+
 def exec_command(
     cmd: str, vid: int = KYOCERA_VID, pid: int = PID_DIAG, timeout_s: float = 10.0
 ) -> str:
     """Execute shell command via diag and return stdout."""
-    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
+    dev, _, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
     cmd_bytes = cmd.encode()
@@ -244,7 +260,7 @@ def exec_command(
 
 def probe(vid: int = KYOCERA_VID, pid: int = PID_DIAG) -> dict:
     """Read-only probe. Returns dict with all results."""
-    dev, iface, ep_out, ep_in = _get_connection(vid, pid)
+    dev, _, ep_out, ep_in = _get_connection(vid, pid)
     if not dev:
         raise ConnectionError("Diag device not found")
     results = {

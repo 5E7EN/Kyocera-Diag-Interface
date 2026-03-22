@@ -6,6 +6,7 @@ import json
 import ctypes
 import subprocess
 import logging
+import time
 from enum import Enum
 from typing import Optional
 
@@ -433,9 +434,69 @@ def adb_shell(cmd: str) -> str:
         return "Error: command timed out (30s)"
 
 
-def reboot() -> None:
-    """Reboot the device via ADB."""
-    subprocess.run(["adb", "reboot"], timeout=10, capture_output=True)
+def reboot(mode: "DeviceMode | None" = None) -> None:
+    if mode == DeviceMode.DIAG:
+        # Activate other diag daemons
+        # Gotta do this since kc_diag class only launches if prop is set
+        # (see /vendor/etc/init/init.kdmc.rc)
+        diag.exec_command("setprop vendor.kc.diag.status start")
+        time.sleep(3)
+        # Reboot
+        diag.reboot()
+    else:
+        # Reboot via ADB
+        subprocess.run(["adb", "reboot"], timeout=10, capture_output=True)
+
+
+# Fastboot reboot constants
+_CHKCODE_PARTITION = "/dev/block/bootdevice/by-name/chkcode"
+_CHKCODE_MAGIC = b"LOOTBFCK" + b"\xff" * 8
+
+
+def reboot_to_fastboot() -> tuple:
+    """Write chkcode magic and reboot."""
+    printf_arg = "".join("\\%03o" % b for b in _CHKCODE_MAGIC)
+    part = _CHKCODE_PARTITION
+
+    try:
+        # Zero the partition
+        out = diag.exec_command(
+            f"dd if=/dev/zero of={part} bs=512 count=1024 2>&1 && sync",
+            timeout_s=30.0,
+        )
+
+        # Write magic
+        out = diag.exec_command(
+            f"printf '{printf_arg}' | dd of={part} bs=16 count=1 2>&1 && sync",
+        )
+
+        # Verify looks good
+        out = diag.exec_command(
+            f"dd if={part} bs=16 count=1 2>/dev/null | od -t x1 -A none",
+        )
+        result = out.strip().replace(" ", "")
+        expected = "".join("%02x" % b for b in _CHKCODE_MAGIC)
+
+        if result != expected:
+            return False, "Verification failed. Magic did not work."
+
+        # Reboot
+        try:
+            diag.exec_command("/system/bin/reboot")
+        except Exception:
+            # Connection drop is expected, ignore error
+            pass
+
+        return True, (
+            "Device will boot into fastboot mode.\n"
+            "To return to normal boot after you're finished, run:\n"
+            "  fastboot erase chkcode\n"
+            "  fastboot reboot"
+        )
+    except ConnectionError as e:
+        return False, f"Diag connection failed: {e}"
+    except Exception as e:
+        return False, f"Fastboot reboot failed: {e}"
 
 
 def switch_to_adb() -> tuple:

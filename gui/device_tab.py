@@ -1,6 +1,5 @@
 """Device tab: mode detection, switching, and probe."""
 
-import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -79,13 +78,12 @@ class DeviceTab(ttk.Frame):
         self.switch_btn = ttk.Button(
             btn_frame, text="Switch to Diag Mode", command=self._switch_to_diag
         )
-        self.switch_btn.pack(side="left", padx=(0, 8))
 
         self.adb_btn = ttk.Button(
             btn_frame, text="Switch to ADB Mode (Regular)", command=self._switch_to_adb
         )
-        if sys.platform != "win32":
-            self.adb_btn.pack(side="left", padx=(0, 8))
+
+        self.mode_sep = tk.Frame(btn_frame, width=1, bg=styles.BORDER)
 
         self.reboot_btn = ttk.Button(
             btn_frame,
@@ -93,7 +91,6 @@ class DeviceTab(ttk.Frame):
             style="Success.TButton",
             command=self._reboot_device,
         )
-        self.reboot_btn.pack(side="left", padx=(0, 8))
 
         # -- Probe section --
         probe_frame = ttk.LabelFrame(self, text=" Diag Status", padding=16)
@@ -169,16 +166,27 @@ class DeviceTab(ttk.Frame):
         self.mode_label.configure(text=label, foreground=color)
         self.mode_detail.configure(text=detail)
 
-        # Enable/disable switch buttons
-        can_switch_diag = mode in (device.DeviceMode.ADB, device.DeviceMode.CDROM)
-        self.switch_btn.configure(state="normal" if can_switch_diag else "disabled")
+        # Show/hide switch buttons based on mode
+        if mode in (device.DeviceMode.ADB, device.DeviceMode.CDROM):
+            self.switch_btn.pack(after=self.detect_btn, side="left", padx=(0, 8))
+            self.switch_btn.configure(state="normal")
+        else:
+            self.switch_btn.pack_forget()
 
-        can_switch_adb = mode in (device.DeviceMode.CDROM, device.DeviceMode.DIAG)
-        self.adb_btn.configure(state="normal" if can_switch_adb else "disabled")
+        if mode == device.DeviceMode.DIAG:
+            self.adb_btn.pack(after=self.detect_btn, side="left", padx=(0, 8))
+            self.adb_btn.configure(state="normal")
+        else:
+            self.adb_btn.pack_forget()
 
-        # Reboot available in any connected mode
-        can_reboot = mode != device.DeviceMode.DISCONNECTED
-        self.reboot_btn.configure(state="normal" if can_reboot else "disabled")
+        # Reboot available in ADB and DIAG modes
+        if mode in (device.DeviceMode.ADB, device.DeviceMode.DIAG):
+            self.reboot_btn.pack(side="left", padx=(0, 8))
+            self.reboot_btn.configure(state="normal")
+            self.mode_sep.pack(before=self.reboot_btn, side="left", fill="y", padx=(0, 8), pady=6)
+        else:
+            self.mode_sep.pack_forget()
+            self.reboot_btn.pack_forget()
 
         # Enable/disable probe button, auto-probe if entering diag mode
         self.probe_btn.configure(
@@ -203,19 +211,11 @@ class DeviceTab(ttk.Frame):
         threading.Thread(target=_do_switch, daemon=True).start()
 
     def _switch_to_adb(self):
-        self.adb_btn.configure(state="disabled")
-        self.detect_btn.configure(state="disabled")
-        self._set_status("Switching to ADB mode...")
-
-        def _do_switch():
-            ok, msg = device.switch_to_adb()
-            mode = device.detect_mode()
-            model = "device"
-            if mode == device.DeviceMode.ADB:
-                model = device.get_device_model_adb()
-            self.after(0, lambda: self._on_switch_done(ok, msg, mode, model))
-
-        threading.Thread(target=_do_switch, daemon=True).start()
+        messagebox.showinfo(
+            "Switch to ADB Mode",
+            "Open your Notifications and select the USB mode notification.\n\n"
+            'Select "Charge only" to switch back to regular ADB mode.',
+        )
 
     def _reboot_device(self):
         if not messagebox.askyesno("Confirm", "Reboot the device?"):
@@ -225,12 +225,13 @@ class DeviceTab(ttk.Frame):
 
         def _do_reboot():
             try:
-                device.reboot()
+                device.reboot(self.current_mode)
+                self.after(0, lambda: self._update_mode(device.DeviceMode.DISCONNECTED))
                 self.after(0, lambda: self._set_status("Reboot command sent"))
             except Exception as e:
                 msg = f"Reboot failed: {e}"
                 self.after(0, lambda: self._set_status(msg))
-            self.after(0, lambda: self.reboot_btn.configure(state="normal"))
+                self.after(0, lambda: self.reboot_btn.configure(state="normal"))
 
         threading.Thread(target=_do_reboot, daemon=True).start()
 

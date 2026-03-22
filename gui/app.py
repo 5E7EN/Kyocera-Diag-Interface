@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import styles
+from core import device
 from .device_tab import DeviceTab
 from .shell_tab import ShellTab
 from .selinux_tab import SELinuxTab
@@ -74,5 +75,13 @@ class App(tk.Tk):
         self.selinux_tab.set_status_var(self.status_var)
         self.file_tab.set_status_var(self.status_var)
 
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
         # Initial device detection
         self.after(200, self.device_tab.refresh_status)
+
+    def _on_tab_changed(self, event=None):
+        selected = self.notebook.select()
+        if selected == str(self.selinux_tab):
+            if self.device_tab.current_mode == device.DeviceMode.DIAG:
+                self.selinux_tab._probe_selinux()

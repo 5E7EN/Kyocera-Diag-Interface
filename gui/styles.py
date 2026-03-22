@@ -192,6 +192,46 @@ def apply_theme(root: tk.Tk):
     )
 
 
+class Tooltip:
+    """Show a tooltip popup when hovering over a widget."""
+
+    def __init__(self, widget: tk.Widget, text: str):
+        self._widget = widget
+        self._text = text
+        self._tip: tk.Toplevel | None = None
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, event=None):
+        if self._tip:
+            return
+        x = self._widget.winfo_rootx() + self._widget.winfo_width() // 2
+        y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
+
+        self._tip = tk.Toplevel(self._widget)
+        self._tip.wm_overrideredirect(True)
+        self._tip.wm_geometry(f"+{x}+{y}")
+
+        lbl = tk.Label(
+            self._tip,
+            text=self._text,
+            bg="#2a2a4a",
+            fg=FG_PRIMARY,
+            font=FONT_SMALL,
+            relief="flat",
+            padx=10,
+            pady=6,
+            wraplength=320,
+            justify="left",
+        )
+        lbl.pack()
+
+    def _hide(self, event=None):
+        if self._tip:
+            self._tip.destroy()
+            self._tip = None
+
+
 def make_text_widget(parent, **kwargs) -> tk.Text:
     """Create a styled Text widget matching the dark theme."""
     defaults = dict(
